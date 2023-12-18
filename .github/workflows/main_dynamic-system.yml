@@ -21,8 +21,13 @@ jobs:
         with:
           java-version: '17'
 
-      - name: Build with Maven
-        run: mvn clean install
+      - name: Fix Gradlew Permissions # Adicione esta etapa para corrigir as permissões
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
+        with:
+         arguments: build
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v3
@@ -49,5 +54,5 @@ jobs:
         with:
           app-name: 'dynamic-system'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_EF6ED9BA4D11474981A36E6B5AAC5476 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_4D6F6AEA7D0748A7AB232E589B795A59 }}
           package: '*.war'
