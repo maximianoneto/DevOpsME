@@ -1,14 +1,11 @@
 package com.tcc.dynamicweb.controller;
 
-
 import com.tcc.dynamicweb.service.CodeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -18,25 +15,50 @@ public class CodeController {
     @Autowired
     CodeService codeService;
 
-    private final String url = "https://github.com/maximianoneto/dynamicweb/blob/master/src/main/java/com/max/dynamicweb/service/DynamicService.java";
 
-    @PostMapping("/modify")
-    public ResponseEntity<String> modifyClass(@RequestBody Map<String, String> payload) {
-        String actualClass = null;
+    // Endpoint para criar uma Thread com uma mensagem inicial
+    @PostMapping("/createThread")
+    public ResponseEntity<String> createThread(@RequestBody Map<String, String> payload) {
         try {
-
-            String classContent = payload.get("payload");
-            if (classContent == null) {
-                return new ResponseEntity<>("classContent is required", HttpStatus.BAD_REQUEST);
+            String initialMessage = payload.get("initialMessage");
+            if (initialMessage == null) {
+                return new ResponseEntity<>("'Mensagen Inicial requerida", HttpStatus.BAD_REQUEST);
             }
-            actualClass = codeService.fetchFileContentAndPrint(payload);
-
-            return ResponseEntity.ok(actualClass);
-
+            String response = codeService.createThread(initialMessage);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();
-            return (ResponseEntity<String>) ResponseEntity.badRequest();
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
-
     }
+
+    // Endpoint para enviar um Run em uma Thread específica
+    @PostMapping("/sendRun")
+    public ResponseEntity<String> sendRun(@RequestBody Map<String, String> payload) {
+        try {
+            String threadId = payload.get("threadId");
+            String assistantId = payload.get("assistantId");
+            if (threadId == null || assistantId == null) {
+                return new ResponseEntity<>("'threadId' e 'assistantId' são requeridos", HttpStatus.BAD_REQUEST);
+            }
+            String response = codeService.sendRun(threadId, assistantId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @GetMapping("/getThreadMessages")
+    public ResponseEntity<String> getThreadMessages(@RequestBody Map<String, String> payload) {
+        try {
+            String threadId = payload.get("payload");
+            String message = codeService.getThreadMessages(threadId);
+            return ResponseEntity.ok(message);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+    }
+
 }
