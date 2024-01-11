@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.Map;
 
 @Controller
@@ -49,6 +50,7 @@ public class CodeController {
         }
     }
 
+
     @GetMapping("/getThreadMessages")
     public ResponseEntity<String> getThreadMessages(@RequestBody Map<String, String> payload) {
         try {
@@ -61,4 +63,20 @@ public class CodeController {
         }
     }
 
+    @PostMapping("/analyze")
+    public ResponseEntity<String> analyzeImage(@RequestBody Map<String, String> requestBody) {
+        try {
+            String apiKey = "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"; // Substituir pelo mesma OPENAI_API_KEY
+            String imagePath = requestBody.get("payload");
+            String message = requestBody.get("message");
+            String base64Image = codeService.encodeImageToBase64(imagePath);
+            String payload = codeService.createPayload(base64Image, message);
+            String response = codeService.callOpenAiApi(payload, apiKey);
+
+           return ResponseEntity.ok(response);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Error processing image");
+        }
+    }
 }

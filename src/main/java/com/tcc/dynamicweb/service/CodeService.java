@@ -3,13 +3,16 @@ package com.tcc.dynamicweb.service;
 
 import com.google.gson.*;
 import io.github.cdimascio.dotenv.Dotenv;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.http.*;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.concurrent.CompletableFuture;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,6 +72,13 @@ public class CodeService {
 
         Thread.sleep(1200);
 
+        StringBuilder allClassesContent = regexJavaCode(response);
+
+        return allClassesContent.toString();
+    }
+
+    @NotNull
+    public static StringBuilder regexJavaCode(ResponseEntity<String> response) {
         JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
         JsonArray dataArray = responseObject.getAsJsonArray("data");
         StringBuilder allClassesContent = new StringBuilder();
@@ -92,13 +102,62 @@ public class CodeService {
                 }
             }
         }
-
-        return allClassesContent.toString();
+        return allClassesContent;
     }
 
+    public String encodeImageToBase64(String imagePath) throws IOException {
+        byte[] imageBytes = Files.readAllBytes(Path.of(imagePath));
+        return Base64.getEncoder().encodeToString(imageBytes);
+    }
 
+    public String createPayload(String base64Image, String message) {
+        JsonObject payloadObj = new JsonObject();
+        payloadObj.addProperty("model", "gpt-4-vision-preview");
 
+        JsonArray messagesArray = new JsonArray();
+        JsonObject messageObj = new JsonObject();
+        messageObj.addProperty("role", "user");
 
+        JsonArray contentArray = new JsonArray();
+
+        // Adicionando o texto à mensagem
+        JsonObject textObj = new JsonObject();
+        textObj.addProperty("type", "text");
+        textObj.addProperty("text", message);
+        contentArray.add(textObj);
+
+        // Adicionando a imagem à mensagem
+        JsonObject imageObj = new JsonObject();
+        imageObj.addProperty("type", "image_url");
+
+        JsonObject imageUrlObj = new JsonObject();
+        imageUrlObj.addProperty("url", "data:image/jpeg;base64," + base64Image);
+        imageUrlObj.addProperty("detail", "high");
+
+        imageObj.add("image_url", imageUrlObj);
+        contentArray.add(imageObj);
+
+        messageObj.add("content", contentArray);
+        messagesArray.add(messageObj);
+
+        payloadObj.add("messages", messagesArray);
+        payloadObj.addProperty("max_tokens", 4096);
+
+        return payloadObj.toString();
+    }
+
+    private final String apiUrl = "https://api.openai.com/v1/chat/completions";
+
+    public String callOpenAiApi(String payload, String apiKey) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(apiKey);
+
+        HttpEntity<String> entity = new HttpEntity<>(payload, headers);
+        ResponseEntity<String> response = restTemplate.postForEntity(apiUrl, entity, String.class);
+
+        return response.getBody();
+    }
 
 
 
