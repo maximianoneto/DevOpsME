@@ -66,7 +66,7 @@ A aplicação expõe as seguintes rotas através do `CodeController`:
 - **Exemplo**: `{
   "payload":"thread_GjGnQ1SzvgwzPuQ2Yb9lOa47"
   }`
-
+- **OBS**: `Após fazer a requisição, se o response vier com 200 e nenhum body de retorno, aguardar 1 minuto ou mais pois a API pode demorar algum tempo para responder.`
 
 ### 4. Analisar Imagem
 - **Endpoint**: `POST /analyze`
@@ -76,10 +76,3 @@ A aplicação expõe as seguintes rotas através do `CodeController`:
   "payload":"C:\\Users\\User\\IdeaProjects\\DynamicWeb\\src\\main\\resources\\images\\prototipo-low-fidelity.PNG",
   "message": "Gere o código completo referente a imagem usando HTML, CSS, Javascript"   
   }`
-
-
-## Como Executar
-Para executar a aplicação, certifique-se de ter o JDK 17 instalado e configurado corretamente. Após clonar o repositório, você pode executar a aplicação usando o Gradle ou Maven.
-
-## Conclusão
-Este README fornece uma visão geral do projeto DynamicWeb. Para detalhes mais específicos sobre a configuração e execução, consulte a documentação interna do projeto e os comentários no código-fonte.
