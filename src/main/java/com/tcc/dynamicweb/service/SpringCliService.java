@@ -18,13 +18,13 @@ import java.util.regex.Pattern;
 @Service
 public class SpringCliService {
 
-    String currentDirectory = "C:\\Códigos\\Dynamic Projects";
+    String currentDirectory = "/projects";
 
     public List<String> executeSpringInitListCommand() {
         List<String> commandOutput = new ArrayList<>();
         String command = "spring init --list";
-        String cmdPrefix = "cmd /c ";
-        String windowsCommand = cmdPrefix + command.replace("/", "\\"); // Ajuste para o sistema operacional Windows
+        //String cmdPrefix = "cmd /c ";
+        String windowsCommand = command.replace("/", "\\"); // Ajuste para o sistema operacional Windows
 
         try {
             // Executa o comando

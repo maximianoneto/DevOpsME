@@ -2,7 +2,10 @@ package com.tcc.dynamicweb.service;
 
 
 import com.google.gson.*;
+import io.github.cdimascio.dotenv.Dotenv;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -13,8 +16,10 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -22,10 +27,14 @@ import java.util.zip.ZipOutputStream;
 public class CodeService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final String openAiBaseUrl = "https://api.openai.com/v1";
-    //private final Dotenv dotenv = Dotenv.configure().load();
+    private final Dotenv dotenv = Dotenv.configure().load();
 
+    private static final Logger logger = LoggerFactory.getLogger(CodeService.class);
     private final ConcurrentHashMap<String, String> projectPaths = new ConcurrentHashMap<>();
 
+    private Map<String, String> threadProjectMap = new HashMap<>();
+
+    private Map<String, String> assistantMap = new HashMap<>();
     public String createThread(String initialMessageContent) {
         HttpHeaders headers = createHeaders();
         JsonObject messageObj = new JsonObject();
@@ -45,9 +54,15 @@ public class CodeService {
             JsonObject responseBody = JsonParser.parseString(Objects.requireNonNull(response.getBody())).getAsJsonObject();
             String threadId = responseBody.get("id").getAsString();
 
+            String projectName = extractProjectName(initialMessageContent);
+            // Armazenamento do threadId e projectName no HashMap
+            threadProjectMap.put(threadId, projectName);
+
             if(initialMessageContent.contains("react") || initialMessageContent.contains("React")){
+                assistantMap.put(threadId,"asst_OxHBt8GMEc3x4N8QPqi0wrma");
                 sendRun(threadId, "asst_OxHBt8GMEc3x4N8QPqi0wrma");
             } else if(initialMessageContent.contains("java") || initialMessageContent.contains("Java")){
+                assistantMap.put(threadId,"asst_P1Mlu6C8nZBevGH0yvX5aK35");
                 sendRun(threadId, "asst_P1Mlu6C8nZBevGH0yvX5aK35");
             }
         } else {
@@ -56,6 +71,22 @@ public class CodeService {
         }
 
         return response.getBody();
+    }
+
+    // Método auxiliar para extrair o nome do projeto do initialMessageContent
+    private String extractProjectName(String initialMessageContent) {
+        // Divide a string pelo padrão ", " para lidar com múltiplos elementos
+        String[] parts = initialMessageContent.split(",");
+        for (String part : parts) {
+            // Usa expressão regular para encontrar a parte que começa com "nome:" (ignora maiúsculas/minúsculas)
+            if (part.trim().toLowerCase().matches("^nome:.*")) {
+                String[] nameSplit = part.split(":", 2); // Divide apenas no primeiro ":", resultando em 2 partes
+                if (nameSplit.length > 1) { // Verifica se existe algo após "nome:"
+                    return nameSplit[1].trim(); // Retorna o nome do projeto, que é a parte após "nome:"
+                }
+            }
+        }
+        return "Nome do Projeto Desconhecido"; // Retorna isso se o nome do projeto não for encontrado
     }
 
     public String sendRun(String threadId, String assistantId) {
@@ -72,7 +103,7 @@ public class CodeService {
     private HttpHeaders createHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + "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"); /*dotenv.get("OPENAI_API_KEY")*/
+        headers.set("Authorization", "Bearer " + dotenv.get("OPENAI_API_KEY") );
         headers.set("OpenAI-Beta", "assistants=v1");
         return headers;
     }
@@ -93,12 +124,38 @@ public class CodeService {
                     String.class
             );
 
-            Thread.sleep(1200);
+            Thread.sleep(5000);
 
-            regexCmdCode(response);
-
-           //regexJavaCode(response, "hostel");
-
+            if (response.getBody() != null) {
+                JsonObject responseBody = JsonParser.parseString(response.getBody()).getAsJsonObject();
+                JsonArray messages = responseBody.getAsJsonArray("data");
+                if (!messages.isEmpty()) {
+                    JsonObject firstMessage = messages.get(0).getAsJsonObject();
+                    JsonArray content = firstMessage.getAsJsonArray("content");
+                    if (!content.isEmpty()) {
+                        JsonObject firstContent = content.get(0).getAsJsonObject();
+                        String value = firstContent.getAsJsonObject("text").get("value").getAsString();
+                        if(value.isEmpty()) {
+                            response = getThreadMessages(threadId);
+                            System.out.println("Aguardando API");
+                        }
+//                        }else {
+//                            // Verificação de padrões no primeiro item de content
+//                            if (containsPattern(value, "```cmd")) {
+//                                System.out.println("Executando comando");
+//                                regexCmdCode(response);
+//                            } else {
+//                                System.out.println("Criando Arquivos");
+//                                String project = threadProjectMap.get(threadId);
+//                                regexJavaCode(response, project);
+//                            }
+//                        }
+                    }else{
+                        System.out.println("Aguardando API");
+                        response = getThreadMessages(threadId);
+                    }
+                }
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -106,13 +163,16 @@ public class CodeService {
         return response;
     }
 
-
+    private boolean containsPattern(String text, String pattern) {
+        Pattern p = Pattern.compile(pattern);
+        return p.matcher(text).find();
+    }
 
     @NotNull
     public void regexCmdCode(ResponseEntity<String> response) throws IOException {
+
         JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
         JsonArray dataArray = responseObject.getAsJsonArray("data");
-
         String patternString = "(?s)```cmd\\n([\\s\\S]+?)\\n```";
         Pattern pattern = Pattern.compile(patternString);
 
@@ -138,8 +198,8 @@ public class CodeService {
         }
     }
 
-    String currentDirectory = "/";
-
+    //String currentDirectory = "/projects"; Prod
+    String currentDirectory = "C:\\Projects"; // Local
     private void executeCommand(String command) {
 
         try {
@@ -147,13 +207,14 @@ public class CodeService {
             // Verifica se o comando é um comando 'cd'
             if (command.startsWith("cd ")) {
                 // Atualiza o diretório atual
-                String newDirectory = command.substring(3).trim();
+                String commandPart = command.substring(3).trim(); // Remove o prefixo "cd " e espaços extras
+                String[] parts = commandPart.split("&&"); // Divide a string baseando-se em "&&"
+                String newDirectory = parts[0].trim(); // Pega apenas a primeira parte e remove espaços extras
+
                 currentDirectory = new File(currentDirectory, newDirectory).getCanonicalPath();
                 System.out.println("Diretório mudado para: " + currentDirectory);
                 return; // Não precisa executar o comando 'cd' como um processo externo
             }
-
-
 
             // Verifica se o comando contém --name=nome-arquivo nome-arquivo se não contém, adiciona o nome-arquivo um espaço após o fim do comando
             // faça um regex para retirar o nome do projeto da string e vincular ao comando de execução
@@ -165,10 +226,14 @@ public class CodeService {
                 }
 
             }
-            String command2 = command;
+
+            if(command.contains("npm start") || command.contentEquals("npm start")){
+                return;
+            }
 
             // Criar um Runtime e executar o comando usando o Bash do Git
-            String cmdPrefix = "cmd /c ";
+            String cmdPrefix = "cmd /c "; // Deixar essa linha descomentada para rodar localmente
+
             String windowsCommand = cmdPrefix + command.replace("/", "\\"); // Garantir o uso de separadores de caminho do Windows
 
             // Executar o comando
@@ -199,6 +264,8 @@ public class CodeService {
             } else {
                 System.err.println("O comando terminou com erros. Código de saída: " + exitCode);
             }
+            //currentDirectory = "/projects"; // Prod
+            currentDirectory = "C:\\Projects"; // Local
         } catch (IOException e) {
             System.err.println("Erro ao executar o comando. Erro de IO: " + e.getMessage());
         } catch (InterruptedException e) {
@@ -234,7 +301,7 @@ public class CodeService {
                     String textValue = textObject.get("value").getAsString();
 
                     Matcher matcher = pattern.matcher(textValue);
-                    while (matcher.find()) { // Usa if em vez de while para processar apenas a primeira ocorrência
+                    while (matcher.find()) {
                         String classContent = matcher.group().trim();
                         // Delete a primeira e ultima linha da string classContent
                         classContent = classContent.substring(classContent.indexOf("\n") + 1, classContent.lastIndexOf("\n"));
@@ -245,7 +312,7 @@ public class CodeService {
                     Matcher matcher2 = patternGr.matcher(textValue);
                     if (matcher2.find()) { // Processa apenas a primeira ocorrência para dependências Gradle
                         String dependenciesBlock = matcher2.group(1).trim();
-                        replaceDependenciesInProject(dependenciesBlock, projectName);
+                        addDependencyToProject(dependenciesBlock, projectName);
                     }
 
                     Matcher matcher3 = patternProp.matcher(textValue);
@@ -258,15 +325,28 @@ public class CodeService {
         }
     }
 
-    private void replaceDependenciesInProject(String dependenciesBlock, String projectName) throws IOException {
-        Path projectFilePath;
+    private void addDependencyToProject(String dependency, String projectName) throws IOException {
+        Path projectFilePath = Paths.get(getProjectPath(projectName), "build.gradle");
+        List<String> lines = Files.readAllLines(projectFilePath);
+        AtomicBoolean insideDependenciesBlock = new AtomicBoolean(false);
+        String newLine = "    " + dependency; // Presume que a indentação usa espaços. Ajuste conforme necessário.
 
-        projectFilePath = Paths.get(getProjectPath(projectName), "build.gradle");
+        List<String> updatedLines = lines.stream().map(line -> {
+            if (line.trim().equals("dependencies {")) {
+                insideDependenciesBlock.set(true);
+            } else if (line.trim().equals("}") && insideDependenciesBlock.get()) {
+                insideDependenciesBlock.set(false);
+                return newLine + "\n" + line; // Adiciona a nova dependência antes do fechamento do bloco.
+            }
+            return line;
+        }).collect(Collectors.toList());
 
-        String fileContent = new String(Files.readAllBytes(projectFilePath));
-        String updatedContent = fileContent.replaceAll("(?s)dependencies\\s*\\{.*?\\}", dependenciesBlock);
+        // Em caso de arquivos sem um bloco dependencies existente, adiciona ao final.
+        if (insideDependenciesBlock.get()) {
+            updatedLines.add(newLine);
+        }
 
-        Files.writeString(projectFilePath, updatedContent, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.write(projectFilePath, updatedLines, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
     private void addApplicationPropertiesToProject(String applicationBlock, String projectName) throws IOException {
@@ -338,20 +418,6 @@ public class CodeService {
         return null;
     }
 
-    public void createJavaFiles(Map<String, String> classesContent, String directoryPath) throws IOException {
-        Path directory = Paths.get(directoryPath);
-        if (!Files.exists(directory)) {
-            Files.createDirectories(directory);
-        }
-
-        for (Map.Entry<String, String> classEntry : classesContent.entrySet()) {
-            String className = classEntry.getKey();
-            String classContent = classEntry.getValue();
-            Path filePath = directory.resolve(className + ".java");
-            Files.writeString(filePath, classContent, StandardOpenOption.CREATE);
-        }
-    }
-
     public String encodeImageToBase64(byte[] imageBytes) {
         return Base64.getEncoder().encodeToString(imageBytes);
     }
@@ -411,7 +477,7 @@ public class CodeService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + "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");
+        headers.set("Authorization", "Bearer " + dotenv.get("OPENAI_API_KEY"));
         headers.set("OpenAI-Beta", "assistants=v1");
 
         // Construir o corpo da requisição
@@ -422,11 +488,9 @@ public class CodeService {
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
             if (response.getStatusCode().is2xxSuccessful()) {
-                if(message.contains("react") || message.contains("React")){
-                    sendRun(threadId, "asst_OxHBt8GMEc3x4N8QPqi0wrma");
-                } else if(message.contains("java") || message.contains("Java")){
-                    sendRun(threadId, "asst_P1Mlu6C8nZBevGH0yvX5aK35");
-                }
+
+                String assistantId = assistantMap.get(threadId);
+                sendRun(threadId, assistantId);
                 return "Mensagem adicionada com sucesso ao Thread: " + threadId;
             } else {
                 // Tratar erros conforme necessário
@@ -439,17 +503,20 @@ public class CodeService {
     }
 
     public void zipFolder(Path sourceFolderPath, Path zipPath) throws IOException {
-        // Verifica se a pasta node_modules existe e a deleta
+        logger.info("Iniciando zipping do diretório: {}", sourceFolderPath);
+
         Path nodeModulesPath = sourceFolderPath.resolve("node_modules");
         if (Files.exists(nodeModulesPath)) {
+            logger.info("Deletando node_modules em: {}", nodeModulesPath);
             deleteFolder(nodeModulesPath);
         }
 
-        // Inicia o processo de zip
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipPath.toFile()))) {
             Files.walkFileTree(sourceFolderPath, new SimpleFileVisitor<Path>() {
+
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    logger.info("Adicionando arquivo ao ZIP: {}", file);
                     zos.putNextEntry(new ZipEntry(sourceFolderPath.relativize(file).toString()));
                     Files.copy(file, zos);
                     zos.closeEntry();
@@ -458,26 +525,125 @@ public class CodeService {
 
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    // Ignora a adição do diretório node_modules ao zip
                     if (!dir.equals(nodeModulesPath)) {
+                        logger.info("Adicionando diretório ao ZIP (excluindo node_modules): {}", dir);
                         zos.putNextEntry(new ZipEntry(sourceFolderPath.relativize(dir).toString() + "/"));
                         zos.closeEntry();
                     }
                     return FileVisitResult.CONTINUE;
                 }
             });
+        } catch (IOException e) {
+            logger.error("Erro ao criar ZIP: {}", e.getMessage(), e);
+            throw e;
         }
+
+        logger.info("Zipping concluído com sucesso para: {}", zipPath);
     }
 
     private void deleteFolder(Path folderPath) throws IOException {
+        logger.info("Iniciando deleção do diretório: {}", folderPath);
         Files.walk(folderPath)
                 .sorted(Comparator.reverseOrder())
                 .map(Path::toFile)
-                .forEach(File::delete);
+                .forEach(file -> {
+                    logger.info("Deletando: {}", file.getPath());
+                    file.delete();
+                });
+        logger.info("Diretório deletado com sucesso: {}", folderPath);
     }
 
     public String getProjectPath(String projectName) {
         // Utiliza File.separator para garantir compatibilidade entre diferentes sistemas operacionais
         return currentDirectory + File.separator + projectName;
+    }
+
+    public ResponseEntity<String> createProject(String threadId) {
+        ResponseEntity<String> response = null;
+        try {
+
+            HttpHeaders headers = createHeaders();
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            response = restTemplate.exchange(
+                    openAiBaseUrl + "/threads/" + threadId + "/messages",
+                    HttpMethod.GET,
+                    entity,
+                    String.class
+            );
+
+            if (response.getBody() != null) {
+                JsonObject responseBody = JsonParser.parseString(response.getBody()).getAsJsonObject();
+                JsonArray messages = responseBody.getAsJsonArray("data");
+                if (!messages.isEmpty()) {
+                    JsonObject firstMessage = messages.get(0).getAsJsonObject();
+                    JsonArray content = firstMessage.getAsJsonArray("content");
+                    if (!content.isEmpty()) {
+                        JsonObject firstContent = content.get(0).getAsJsonObject();
+                        String value = firstContent.getAsJsonObject("text").get("value").getAsString();
+                        if (value.isEmpty()) {
+                            response = getThreadMessages(threadId);
+                            System.out.println("Aguardando API");
+                        } else {
+                            // Verificação de padrões no primeiro item de content
+                            if (containsPattern(value, "```cmd")) {
+                                System.out.println("Executando comando");
+                                regexCmdCode(response);
+                            }
+                        }
+                    } else {
+                        System.out.println("Aguardando API");
+                        response = getThreadMessages(threadId);
+                    }
+                }
+            }
+    } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return response;
+    }
+
+    public ResponseEntity<String> addCode(String threadId) {
+        ResponseEntity<String> response = null;
+        try {
+
+            HttpHeaders headers = createHeaders();
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            response = restTemplate.exchange(
+                    openAiBaseUrl + "/threads/" + threadId + "/messages",
+                    HttpMethod.GET,
+                    entity,
+                    String.class
+            );
+
+            if (response.getBody() != null) {
+                JsonObject responseBody = JsonParser.parseString(response.getBody()).getAsJsonObject();
+                JsonArray messages = responseBody.getAsJsonArray("data");
+                if (!messages.isEmpty()) {
+                    JsonObject firstMessage = messages.get(0).getAsJsonObject();
+                    JsonArray content = firstMessage.getAsJsonArray("content");
+                    if (!content.isEmpty()) {
+                        JsonObject firstContent = content.get(0).getAsJsonObject();
+                        String value = firstContent.getAsJsonObject("text").get("value").getAsString();
+                        if (value.isEmpty()) {
+                            response = getThreadMessages(threadId);
+                            System.out.println("Aguardando API");
+                        } else {
+                            // Verificação de padrões no primeiro item de content
+                            System.out.println("Criando Arquivos Java");
+                            String project = threadProjectMap.get(threadId);
+                            regexJavaCode(response, project);
+                        }
+                    } else {
+                        System.out.println("Aguardando API");
+                        response = getThreadMessages(threadId);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return response;
     }
 }
