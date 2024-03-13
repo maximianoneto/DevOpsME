@@ -64,6 +64,12 @@ public class CodeService {
             } else if(initialMessageContent.contains("java") || initialMessageContent.contains("Java")){
                 assistantMap.put(threadId,"asst_P1Mlu6C8nZBevGH0yvX5aK35");
                 sendRun(threadId, "asst_P1Mlu6C8nZBevGH0yvX5aK35");
+            } else if(initialMessageContent.contains("next") || initialMessageContent.contains("Next")){
+                assistantMap.put(threadId,"asst_WQoe8Myj09wtB3vYWig0FXJb");
+                sendRun(threadId, "asst_WQoe8Myj09wtB3vYWig0FXJb");
+            } else if(initialMessageContent.contains("node") || initialMessageContent.contains("Node") || initialMessageContent.contains("Node.js") || initialMessageContent.contains("node.js")){
+                assistantMap.put(threadId,"asst_8VMJsRU9b57pgrTVxGMkYb5r");
+                sendRun(threadId, "asst_8VMJsRU9b57pgrTVxGMkYb5r");
             }
         } else {
             // Trate o caso de erro conforme necessário
@@ -139,17 +145,6 @@ public class CodeService {
                             response = getThreadMessages(threadId);
                             System.out.println("Aguardando API");
                         }
-//                        }else {
-//                            // Verificação de padrões no primeiro item de content
-//                            if (containsPattern(value, "```cmd")) {
-//                                System.out.println("Executando comando");
-//                                regexCmdCode(response);
-//                            } else {
-//                                System.out.println("Criando Arquivos");
-//                                String project = threadProjectMap.get(threadId);
-//                                regexJavaCode(response, project);
-//                            }
-//                        }
                     }else{
                         System.out.println("Aguardando API");
                         response = getThreadMessages(threadId);
@@ -204,6 +199,10 @@ public class CodeService {
 
         try {
 
+            Map<String, String> env = new HashMap<>(System.getenv());
+            String nodePath = "C:\\Program Files\\nodejs";
+            env.put("PATH", nodePath + ";" + env.get("PATH"));
+
             // Verifica se o comando é um comando 'cd'
             if (command.startsWith("cd ")) {
                 // Atualiza o diretório atual
@@ -232,13 +231,15 @@ public class CodeService {
             }
 
             // Criar um Runtime e executar o comando usando o Bash do Git
-            String cmdPrefix = "cmd /c "; // Deixar essa linha descomentada para rodar localmente
+            //String cmdPrefix = "cmd /c "; // Deixar essa linha descomentada para rodar localmente
 
-            String windowsCommand = cmdPrefix + command.replace("/", "\\"); // Garantir o uso de separadores de caminho do Windows
+            //String windowsCommand = command.replace("/", "\\"); // Garantir o uso de separadores de caminho do Windows
 
             // Executar o comando
-            Process process = Runtime.getRuntime().exec(windowsCommand, null, new File(currentDirectory));
-
+            ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", command);
+            processBuilder.directory(new File(currentDirectory));
+            processBuilder.environment().putAll(env); // Adiciona o PATH atualizado
+            Process process = processBuilder.start();
             // Redirecionar a saída de erro e a saída padrão para o console
             InputStream stdInput = process.getInputStream();
             InputStream stdError = process.getErrorStream();
@@ -265,7 +266,7 @@ public class CodeService {
                 System.err.println("O comando terminou com erros. Código de saída: " + exitCode);
             }
             //currentDirectory = "/projects"; // Prod
-            currentDirectory = "C:\\Projects"; // Local
+            //currentDirectory = "C:\\Projects"; // Local
         } catch (IOException e) {
             System.err.println("Erro ao executar o comando. Erro de IO: " + e.getMessage());
         } catch (InterruptedException e) {
@@ -324,6 +325,49 @@ public class CodeService {
             }
         }
     }
+
+    @NotNull
+    public void regexNodeCode(ResponseEntity<String> response, String projectName) throws IOException {
+        JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
+        JsonArray dataArray = responseObject.getAsJsonArray("data");
+
+        // Expressões regulares para capturar o caminho e o conteúdo
+        String patternNodeString = "```typescript\\n(.*?)```";
+        Pattern patternNode = Pattern.compile(patternNodeString, Pattern.DOTALL);
+        String patternPathString = "```path\\n(.*?)```";
+        Pattern patternPath = Pattern.compile(patternPathString, Pattern.DOTALL);
+
+        for (JsonElement dataElement : dataArray) {
+            JsonArray contentArray = dataElement.getAsJsonObject().getAsJsonArray("content");
+            if (contentArray.size() > 0) {
+                JsonObject contentObject = contentArray.get(0).getAsJsonObject();
+                if ("text".equals(contentObject.get("type").getAsString())) {
+                    JsonObject textObject = contentObject.getAsJsonObject("text");
+                    String textValue = textObject.get("value").getAsString();
+
+                    Matcher matcherNode = patternNode.matcher(textValue);
+                    Matcher matcherPath = patternPath.matcher(textValue);
+
+                    // Encontra primeiro o path e depois o node, ambos devem existir para chamar o método
+                    while (matcherPath.find() && matcherNode.find()) {
+                        String path = matcherPath.group(1).trim();
+                        String content = matcherNode.group(1).trim();
+                        createTypescriptFilesInProject(path, content, projectName);
+                    }
+                }
+            }
+        }
+    }
+
+    private void createTypescriptFilesInProject(String path, String content, String projectName) throws IOException {
+        Path pathToFile = Paths.get(getProjectPath(projectName), path); // Cria o Path para o arquivo
+        if (Files.notExists(pathToFile.getParent())) {
+            Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
+        }
+        // Escreve o conteúdo no arquivo, usando a opção CREATE para criar se não existir, caso contrário TRUNCATE_EXISTING para sobrescrever
+        Files.writeString(pathToFile, content, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
 
     private void addDependencyToProject(String dependency, String projectName) throws IOException {
         Path projectFilePath = Paths.get(getProjectPath(projectName), "build.gradle");
@@ -617,6 +661,8 @@ public class CodeService {
                     String.class
             );
 
+            String patternString = "(?s)```cmd\\n([\\s\\S]+?)\\n```";
+            Pattern pattern = Pattern.compile(patternString);
             if (response.getBody() != null) {
                 JsonObject responseBody = JsonParser.parseString(response.getBody()).getAsJsonObject();
                 JsonArray messages = responseBody.getAsJsonArray("data");
@@ -631,9 +677,22 @@ public class CodeService {
                             System.out.println("Aguardando API");
                         } else {
                             // Verificação de padrões no primeiro item de content
-                            System.out.println("Criando Arquivos Java");
+
+                            Matcher matcher = pattern.matcher(value);
+                            while (matcher.find()) {
+                                String commandBlock = matcher.group(1).trim();
+                                String[] commands = commandBlock.split("\\n"); // Divide em linhas separadas se houver mais de um comando
+                                for (String command : commands) {
+                                    command = command.trim(); // Remova espaços em branco desnecessários
+                                    executeCommand(command);
+                                }
+                            }
                             String project = threadProjectMap.get(threadId);
-                            regexJavaCode(response, project);
+                            //regexNodeCode(response, project);
+                            regexNextCode(response, project);
+                            //regexReactCode(response, project);
+                            System.out.println("Criando Arquivos");
+                           // regexJavaCode(response, project);
                         }
                     } else {
                         System.out.println("Aguardando API");
@@ -646,4 +705,88 @@ public class CodeService {
         }
         return response;
     }
-}
+
+    private void regexNextCode(ResponseEntity<String> response, String project) throws IOException {
+        JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
+        JsonArray dataArray = responseObject.getAsJsonArray("data");
+
+        // Expressões regulares para capturar o caminho e o conteúdo
+        String patternNodeString = "```js\\n(.*?)```";
+        Pattern patternNode = Pattern.compile(patternNodeString, Pattern.DOTALL);
+        String patternPathString = "```path\\n(.*?)```";
+        Pattern patternPath = Pattern.compile(patternPathString, Pattern.DOTALL);
+
+        for (JsonElement dataElement : dataArray) {
+            JsonArray contentArray = dataElement.getAsJsonObject().getAsJsonArray("content");
+            if (contentArray.size() > 0) {
+                JsonObject contentObject = contentArray.get(0).getAsJsonObject();
+                if ("text".equals(contentObject.get("type").getAsString())) {
+                    JsonObject textObject = contentObject.getAsJsonObject("text");
+                    String textValue = textObject.get("value").getAsString();
+
+                    Matcher matcherNode = patternNode.matcher(textValue);
+                    Matcher matcherPath = patternPath.matcher(textValue);
+
+                    // Encontra primeiro o path e depois o node, ambos devem existir para chamar o método
+                    while (matcherPath.find() && matcherNode.find()) {
+                        String path = matcherPath.group(1).trim();
+                        String content = matcherNode.group(1).trim();
+                        createNextFilesInProject(path, content, project);
+                    }
+                }
+            }
+        }
+    }
+
+    private void createNextFilesInProject(String path, String content, String project) throws IOException {
+        Path pathToFile = Paths.get(getProjectPath(project), path); // Cria o Path para o arquivo
+        if (Files.notExists(pathToFile.getParent())) {
+            Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
+        }
+        // Escreve o conteúdo no arquivo, usando a opção CREATE para criar se não existir, caso contrário TRUNCATE_EXISTING para sobrescrever
+        Files.writeString(pathToFile, content, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    private void regexReactCode(ResponseEntity<String> response, String project) throws IOException {
+            JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
+            JsonArray dataArray = responseObject.getAsJsonArray("data");
+
+            // Expressões regulares para capturar o caminho e o conteúdo
+            String patternReactString = "```react\\n(.*?)```";
+            Pattern patternReact = Pattern.compile(patternReactString, Pattern.DOTALL);
+            String patternPathString = "```path\\n(.*?)```";
+            Pattern patternPath = Pattern.compile(patternPathString, Pattern.DOTALL);
+
+            for (JsonElement dataElement : dataArray) {
+                JsonArray contentArray = dataElement.getAsJsonObject().getAsJsonArray("content");
+                if (contentArray.size() > 0) {
+                    JsonObject contentObject = contentArray.get(0).getAsJsonObject();
+                    if ("text".equals(contentObject.get("type").getAsString())) {
+                        JsonObject textObject = contentObject.getAsJsonObject("text");
+                        String textValue = textObject.get("value").getAsString();
+
+                        Matcher matcherReact = patternReact.matcher(textValue);
+                        Matcher matcherPath = patternPath.matcher(textValue);
+
+                        // Encontra primeiro o path e depois o node, ambos devem existir para chamar o método
+                        while (matcherPath.find() && matcherReact.find()) {
+                            String path = matcherPath.group(1).trim();
+                            String content = matcherReact.group(1).trim();
+                            createReactFilesInProject(path, content, project);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void createReactFilesInProject(String path, String content, String projectName) throws IOException {
+            Path pathToFile = Paths.get(getProjectPath(projectName), path); // Cria o Path para o arquivo
+            if (Files.notExists(pathToFile.getParent())) {
+                Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
+            }
+            // Escreve o conteúdo no arquivo, usando a opção CREATE para criar se não existir, caso contrário TRUNCATE_EXISTING para sobrescrever
+            Files.writeString(pathToFile, content, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        }
+
+    }
+
