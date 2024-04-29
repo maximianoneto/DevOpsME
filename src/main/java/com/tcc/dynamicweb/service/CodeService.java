@@ -1,13 +1,21 @@
 package com.tcc.dynamicweb.service;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.*;
+import com.tcc.dynamicweb.model.Assistant;
+import com.tcc.dynamicweb.model.Project;
+import com.tcc.dynamicweb.repository.AssistantRepository;
+import com.tcc.dynamicweb.repository.ProjectRepository;
 import io.github.cdimascio.dotenv.Dotenv;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
@@ -35,130 +43,22 @@ public class CodeService {
     private Map<String, String> threadProjectMap = new HashMap<>();
 
     private Map<String, String> assistantMap = new HashMap<>();
-    public String createThread(String initialMessageContent) {
-        HttpHeaders headers = createHeaders();
-        JsonObject messageObj = new JsonObject();
-        messageObj.addProperty("role", "user");
-        messageObj.addProperty("content", initialMessageContent);
 
-        JsonArray messages = new JsonArray();
-        messages.add(messageObj);
+    private Map<String, String> threadIdMap = new HashMap<>();
 
-        JsonObject threadBody = new JsonObject();
-        threadBody.add("messages", messages);
+    @Autowired
+    private AssistantRepository assistantRepository;
 
-        HttpEntity<String> entity = new HttpEntity<>(threadBody.toString(), headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(openAiBaseUrl + "/threads", entity, String.class);
+    @Autowired
+    private ProjectRepository projectRepository;
 
-        if (response.getStatusCode().is2xxSuccessful()) {
-            JsonObject responseBody = JsonParser.parseString(Objects.requireNonNull(response.getBody())).getAsJsonObject();
-            String threadId = responseBody.get("id").getAsString();
+    @Autowired
+    private ThreadService threadService;
 
-            String projectName = extractProjectName(initialMessageContent);
-            // Armazenamento do threadId e projectName no HashMap
-            threadProjectMap.put(threadId, projectName);
+    @Autowired
+    private ProjectService projectService;
 
-            if(initialMessageContent.contains("react") || initialMessageContent.contains("React")){
-                assistantMap.put(threadId,"asst_OxHBt8GMEc3x4N8QPqi0wrma");
-                sendRun(threadId, "asst_OxHBt8GMEc3x4N8QPqi0wrma");
-            } else if(initialMessageContent.contains("java") || initialMessageContent.contains("Java")){
-                assistantMap.put(threadId,"asst_P1Mlu6C8nZBevGH0yvX5aK35");
-                sendRun(threadId, "asst_P1Mlu6C8nZBevGH0yvX5aK35");
-            } else if(initialMessageContent.contains("next") || initialMessageContent.contains("Next")){
-                assistantMap.put(threadId,"asst_WQoe8Myj09wtB3vYWig0FXJb");
-                sendRun(threadId, "asst_WQoe8Myj09wtB3vYWig0FXJb");
-            } else if(initialMessageContent.contains("node") || initialMessageContent.contains("Node") || initialMessageContent.contains("Node.js") || initialMessageContent.contains("node.js")){
-                assistantMap.put(threadId,"asst_8VMJsRU9b57pgrTVxGMkYb5r");
-                sendRun(threadId, "asst_8VMJsRU9b57pgrTVxGMkYb5r");
-            }
-        } else {
-            // Trate o caso de erro conforme necessário
-            return "Erro ao criar thread: " + response.getStatusCode();
-        }
-
-        return response.getBody();
-    }
-
-    // Método auxiliar para extrair o nome do projeto do initialMessageContent
-    private String extractProjectName(String initialMessageContent) {
-        // Divide a string pelo padrão ", " para lidar com múltiplos elementos
-        String[] parts = initialMessageContent.split(",");
-        for (String part : parts) {
-            // Usa expressão regular para encontrar a parte que começa com "nome:" (ignora maiúsculas/minúsculas)
-            if (part.trim().toLowerCase().matches("^nome:.*")) {
-                String[] nameSplit = part.split(":", 2); // Divide apenas no primeiro ":", resultando em 2 partes
-                if (nameSplit.length > 1) { // Verifica se existe algo após "nome:"
-                    return nameSplit[1].trim(); // Retorna o nome do projeto, que é a parte após "nome:"
-                }
-            }
-        }
-        return "Nome do Projeto Desconhecido"; // Retorna isso se o nome do projeto não for encontrado
-    }
-
-    public String sendRun(String threadId, String assistantId) {
-        HttpHeaders headers = createHeaders();
-        JsonObject runBody = new JsonObject();
-        runBody.addProperty("assistant_id", assistantId);
-
-        HttpEntity<String> entity = new HttpEntity<>(runBody.toString(), headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(openAiBaseUrl + "/threads/" + threadId + "/runs", entity, String.class);
-
-        return response.getBody();
-    }
-
-    private HttpHeaders createHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + dotenv.get("OPENAI_API_KEY") );
-        headers.set("OpenAI-Beta", "assistants=v1");
-        return headers;
-    }
-
-
-    public ResponseEntity<String> getThreadMessages(String threadId) throws InterruptedException, IOException {
-
-        ResponseEntity<String> response = null;
-        try {
-
-            HttpHeaders headers = createHeaders();
-            HttpEntity<String> entity = new HttpEntity<>(headers);
-
-            response = restTemplate.exchange(
-                    openAiBaseUrl + "/threads/" + threadId + "/messages",
-                    HttpMethod.GET,
-                    entity,
-                    String.class
-            );
-
-            Thread.sleep(5000);
-
-            if (response.getBody() != null) {
-                JsonObject responseBody = JsonParser.parseString(response.getBody()).getAsJsonObject();
-                JsonArray messages = responseBody.getAsJsonArray("data");
-                if (!messages.isEmpty()) {
-                    JsonObject firstMessage = messages.get(0).getAsJsonObject();
-                    JsonArray content = firstMessage.getAsJsonArray("content");
-                    if (!content.isEmpty()) {
-                        JsonObject firstContent = content.get(0).getAsJsonObject();
-                        String value = firstContent.getAsJsonObject("text").get("value").getAsString();
-                        if(value.isEmpty()) {
-                            response = getThreadMessages(threadId);
-                            System.out.println("Aguardando API");
-                        }
-                    }else{
-                        System.out.println("Aguardando API");
-                        response = getThreadMessages(threadId);
-                    }
-                }
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return response;
-    }
-
-    private boolean containsPattern(String text, String pattern) {
+    boolean containsPattern(String text, String pattern) {
         Pattern p = Pattern.compile(pattern);
         return p.matcher(text).find();
     }
@@ -185,7 +85,7 @@ public class CodeService {
                         String[] commands = commandBlock.split("\\n"); // Divide em linhas separadas se houver mais de um comando
                         for (String command : commands) {
                             command = command.trim(); // Remova espaços em branco desnecessários
-                                executeCommand(command);
+                            executeCommand(command);
                         }
                     }
                 }
@@ -195,6 +95,7 @@ public class CodeService {
 
     //String currentDirectory = "/projects"; Prod
     String currentDirectory = "C:\\Projects"; // Local
+
     private void executeCommand(String command) {
 
         try {
@@ -217,16 +118,16 @@ public class CodeService {
 
             // Verifica se o comando contém --name=nome-arquivo nome-arquivo se não contém, adiciona o nome-arquivo um espaço após o fim do comando
             // faça um regex para retirar o nome do projeto da string e vincular ao comando de execução
-            if (command.contains("--name=")){
+            if (command.contains("--name=")) {
                 String projectName = command.substring(command.lastIndexOf("--name=") + 7);
                 //verifica se o nome do projeto esta contido duas vezes na string comand
-                if(!projectName.contains(" ")){
+                if (!projectName.contains(" ")) {
                     command = command + " " + projectName;
                 }
 
             }
 
-            if(command.contains("npm start") || command.contentEquals("npm start")){
+            if (command.contains("npm start") || command.contentEquals("npm start") || command.contentEquals("npm test") || command.contentEquals("npm test")) {
                 return;
             }
 
@@ -306,20 +207,20 @@ public class CodeService {
                         String classContent = matcher.group().trim();
                         // Delete a primeira e ultima linha da string classContent
                         classContent = classContent.substring(classContent.indexOf("\n") + 1, classContent.lastIndexOf("\n"));
-                        Map<String, String> classesContent = extractJavaClasses(classContent);
-                        createJavaFilesInProject(classesContent, projectName);
+                        Map<String, String> classesContent = projectService.extractJavaClasses(classContent);
+                        projectService.createJavaFilesInProject(classesContent, projectName);
                     }
 
                     Matcher matcher2 = patternGr.matcher(textValue);
                     if (matcher2.find()) { // Processa apenas a primeira ocorrência para dependências Gradle
                         String dependenciesBlock = matcher2.group(1).trim();
-                        addDependencyToProject(dependenciesBlock, projectName);
+                        projectService.addDependencyToProject(dependenciesBlock, projectName);
                     }
 
                     Matcher matcher3 = patternProp.matcher(textValue);
                     if (matcher3.find()) { // Processa apenas a primeira ocorrência para dependências application.properties
                         String applicationBlock = matcher3.group(1).trim();
-                        addApplicationPropertiesToProject(applicationBlock, projectName);
+                        projectService.addApplicationPropertiesToProject(applicationBlock, projectName);
                     }
                 }
             }
@@ -327,15 +228,103 @@ public class CodeService {
     }
 
     @NotNull
-    public void regexNodeCode(ResponseEntity<String> response, String projectName) throws IOException {
-        JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
+    public void regexNodeCode(ResponseEntity<String> response, String projectName) throws IOException, InterruptedException {
+        JsonObject responseObject = JsonParser.parseString(Objects.requireNonNull(response.getBody())).getAsJsonObject();
         JsonArray dataArray = responseObject.getAsJsonArray("data");
 
         // Expressões regulares para capturar o caminho e o conteúdo
-        String patternNodeString = "```typescript\\n(.*?)```";
+        String patternNodeString = "```javascript\\n(.*?)```";
         Pattern patternNode = Pattern.compile(patternNodeString, Pattern.DOTALL);
         String patternPathString = "```path\\n(.*?)```";
         Pattern patternPath = Pattern.compile(patternPathString, Pattern.DOTALL);
+
+        for (JsonElement dataElement : dataArray) {
+            JsonArray contentArray = dataElement.getAsJsonObject().getAsJsonArray("content");
+            if (contentArray.size() > 0) {
+                JsonObject contentObject = contentArray.get(0).getAsJsonObject();
+                if ("text".equals(contentObject.get("type").getAsString())) {
+                    JsonObject textObject = contentObject.getAsJsonObject("text");
+
+                    String textValue = textObject.get("value").getAsString();
+
+                    Matcher matcherNode = patternNode.matcher(textValue);
+                    Matcher matcherPath = patternPath.matcher(textValue);
+
+                    // Encontra primeiro o path e depois o node, ambos devem existir para chamar o método
+                    while (matcherPath.find() && matcherNode.find()) {
+                        String path = matcherPath.group(1).trim();
+                        String content = matcherNode.group(1).trim();
+                        projectService.createNodeFilesInProject(path, content, projectName);
+                        System.out.println("Criando Arquivos Javascript");
+                    }
+                }
+            }
+        }
+        sendCodeToAssistantTest(response, projectName);
+    }
+
+    private void sendCodeToAssistantTest(ResponseEntity<String> response, String projectName) throws IOException, InterruptedException {
+
+        if (response.getBody() != null) {
+            JsonObject responseBody = JsonParser.parseString(response.getBody()).getAsJsonObject();
+            JsonArray messages = responseBody.getAsJsonArray("data");
+            if (!messages.isEmpty()) {
+                JsonObject firstMessage = messages.get(0).getAsJsonObject();
+                JsonArray content = firstMessage.getAsJsonArray("content");
+                if (!content.isEmpty()) {
+                    JsonObject firstContent = content.get(0).getAsJsonObject();
+                    String value = firstContent.getAsJsonObject("text").get("value").getAsString();
+
+                    String threadIdTest = assistantRepository.findTestThreadIdByProjectName(projectName);
+
+                    if(threadIdTest != null){
+                        String threadId = threadService.addMessageToThread(threadIdTest,value, false, "");
+
+                        regexTestNode(threadService.getThreadMessages(threadId), projectName);
+                    }else {
+                        String threadId = threadService.createThread("nome:" + projectName + "," + "\n" + "testNode" + value);
+
+                        regexTestNode(threadService.getThreadMessages(threadId), projectName);
+
+                        // Supondo que seu projectRepository tenha um método chamado findByName que retorna um Optional<Project>
+                        Optional<Project> existingProject = projectRepository.findByName(projectName);
+
+                        Project project = existingProject.orElseGet(() -> {
+                            Project newProject = new Project();
+                            newProject.setName(projectName);
+                            newProject.setPathToProject("C:\\Projects\\" + projectName);
+                            return newProject;
+                        });
+
+                        // Supondo que o assistantRepository tenha um método findAssistantByThreadId que retorne Optional<Assistant>
+                        Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
+
+                        Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
+                        assistant.setThreadId(threadId);
+                        assistant.setProject(project);
+                        // Ajuste o tipo conforme sua implementação
+                        assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
+                        project.getAssistants().add(assistant);
+
+                        projectRepository.save(project);
+                    }
+                }
+            }
+        }
+    }
+
+    private void regexTestNode(ResponseEntity<String> response, String projectName) throws IOException {
+        JsonObject responseObject = JsonParser.parseString(Objects.requireNonNull(response.getBody())).getAsJsonObject();
+        JsonArray dataArray = responseObject.getAsJsonArray("data");
+
+        // Expressões regulares para capturar o caminho e o conteúdo
+        String patternNodeString = "```javascript\\n(.*?)```";
+        Pattern patternNode = Pattern.compile(patternNodeString, Pattern.DOTALL);
+        String patternPathString = "```path\\n(.*?)```";
+        Pattern patternPath = Pattern.compile(patternPathString, Pattern.DOTALL);
+
+        String patternCmdString = "(?s)```cmd\\n([\\s\\S]+?)\\n```";
+        Pattern patternCmd = Pattern.compile(patternCmdString, Pattern.DOTALL);
 
         for (JsonElement dataElement : dataArray) {
             JsonArray contentArray = dataElement.getAsJsonObject().getAsJsonArray("content");
@@ -347,120 +336,29 @@ public class CodeService {
 
                     Matcher matcherNode = patternNode.matcher(textValue);
                     Matcher matcherPath = patternPath.matcher(textValue);
+                    Matcher matcherCmd = patternCmd.matcher(textValue);
+
+                    while (matcherCmd.find()) {
+                        String commandBlock = matcherCmd.group(1).trim();
+                        String[] commands = commandBlock.split("\\n"); // Divide em linhas separadas se houver mais de um comando
+                        for (String command : commands) {
+                            command = command.trim(); // Remova espaços em branco desnecessários
+                            executeCommand(command);
+                        }
+                    }
 
                     // Encontra primeiro o path e depois o node, ambos devem existir para chamar o método
                     while (matcherPath.find() && matcherNode.find()) {
                         String path = matcherPath.group(1).trim();
                         String content = matcherNode.group(1).trim();
-                        createTypescriptFilesInProject(path, content, projectName);
+                        projectService.createNodeFilesInProject(path, content, projectName);
+                        System.out.println("Criando Arquivos de Teste");
                     }
                 }
             }
         }
     }
 
-    private void createTypescriptFilesInProject(String path, String content, String projectName) throws IOException {
-        Path pathToFile = Paths.get(getProjectPath(projectName), path); // Cria o Path para o arquivo
-        if (Files.notExists(pathToFile.getParent())) {
-            Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
-        }
-        // Escreve o conteúdo no arquivo, usando a opção CREATE para criar se não existir, caso contrário TRUNCATE_EXISTING para sobrescrever
-        Files.writeString(pathToFile, content, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-    }
-
-
-    private void addDependencyToProject(String dependency, String projectName) throws IOException {
-        Path projectFilePath = Paths.get(getProjectPath(projectName), "build.gradle");
-        List<String> lines = Files.readAllLines(projectFilePath);
-        AtomicBoolean insideDependenciesBlock = new AtomicBoolean(false);
-        String newLine = "    " + dependency; // Presume que a indentação usa espaços. Ajuste conforme necessário.
-
-        List<String> updatedLines = lines.stream().map(line -> {
-            if (line.trim().equals("dependencies {")) {
-                insideDependenciesBlock.set(true);
-            } else if (line.trim().equals("}") && insideDependenciesBlock.get()) {
-                insideDependenciesBlock.set(false);
-                return newLine + "\n" + line; // Adiciona a nova dependência antes do fechamento do bloco.
-            }
-            return line;
-        }).collect(Collectors.toList());
-
-        // Em caso de arquivos sem um bloco dependencies existente, adiciona ao final.
-        if (insideDependenciesBlock.get()) {
-            updatedLines.add(newLine);
-        }
-
-        Files.write(projectFilePath, updatedLines, StandardOpenOption.TRUNCATE_EXISTING);
-    }
-
-    private void addApplicationPropertiesToProject(String applicationBlock, String projectName) throws IOException {
-        Path projectFilePath = Paths.get(getProjectPath(projectName), "src", "main", "resources", "application.properties");
-
-        String fileContent = new String(Files.readAllBytes(projectFilePath));
-
-        // Apenas adicione o applicationBlock no arquivo application.properties
-        String updatedContent = fileContent + "\n" + applicationBlock;
-
-        Files.writeString(projectFilePath, updatedContent, StandardOpenOption.TRUNCATE_EXISTING);
-
-    }
-
-    public void createJavaFilesInProject(Map<String, String> classesContent, String projectName) throws IOException {
-        // Caminho base onde os arquivos Java devem ser salvos dentro do projeto
-        String mainBasePath = getProjectPath(projectName) + File.separator + "src" + File.separator + "main" + File.separator + "java";
-        String testBasePath = getProjectPath(projectName) + File.separator + "src" + File.separator + "test" + File.separator + "java";
-
-        for (Map.Entry<String, String> classEntry : classesContent.entrySet()) {
-            String className = classEntry.getKey();
-            String classContent = classEntry.getValue();
-            String packageName = extractPackageName(classContent); // Extrai o nome do pacote
-
-            // Define o caminho base com base no nome da classe
-            String basePath = className.contains("Test") ? testBasePath : mainBasePath;
-
-            // Constrói o caminho do diretório baseado no nome do pacote
-            String packagePath = packageName.replace('.', File.separatorChar);
-            Path fullDirPath = Paths.get(basePath, packagePath);
-
-            // Cria o diretório do pacote, se necessário
-            if (!Files.exists(fullDirPath)) {
-                Files.createDirectories(fullDirPath);
-            }
-
-            // Cria o arquivo Java no diretório do pacote
-            Path filePath = fullDirPath.resolve(className + ".java");
-            Files.writeString(filePath, classContent, StandardOpenOption.CREATE);
-        }
-    }
-
-    private String extractPackageName(String classContent) {
-        Pattern packagePattern = Pattern.compile("package\\s+([\\w\\.]+);");
-        Matcher matcher = packagePattern.matcher(classContent);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null; // Ou retorne um valor padrão, conforme necessário
-    }
-
-    public Map<String, String> extractJavaClasses(String classContent) {
-        Map<String, String> classesContent = new HashMap<>();
-        String className = extractClassName(classContent);
-
-        if (className != null && !className.isEmpty()) {
-            classesContent.put(className, classContent);
-        }
-
-        return classesContent;
-    }
-
-    private String extractClassName(String classContent) {
-        Pattern classNamePattern = Pattern.compile("(class|interface|enum)\\s+([\\w$]+)\\s");
-        Matcher classNameMatcher = classNamePattern.matcher(classContent);
-        if (classNameMatcher.find()) {
-            return classNameMatcher.group(2);
-        }
-        return null;
-    }
 
     public String encodeImageToBase64(byte[] imageBytes) {
         return Base64.getEncoder().encodeToString(imageBytes);
@@ -516,142 +414,11 @@ public class CodeService {
     }
 
 
-    public String addMessageToThread(String threadId, String message) {
-        String url = openAiBaseUrl + "/threads/" + threadId + "/messages";
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + dotenv.get("OPENAI_API_KEY"));
-        headers.set("OpenAI-Beta", "assistants=v1");
-
-        // Construir o corpo da requisição
-        String requestBody = String.format("{ \"role\": \"user\", \"content\": \"%s\" }", message);
-
-        HttpEntity<String> request = new HttpEntity<>(requestBody, headers);
-
-        try {
-            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
-            if (response.getStatusCode().is2xxSuccessful()) {
-
-                String assistantId = assistantMap.get(threadId);
-                sendRun(threadId, assistantId);
-                return "Mensagem adicionada com sucesso ao Thread: " + threadId;
-            } else {
-                // Tratar erros conforme necessário
-                return "Erro ao adicionar mensagem ao Thread: " + response.getStatusCode();
-            }
-        } catch (Exception e) {
-            // Tratar exceções conforme necessário
-            return "Exceção ao adicionar mensagem ao Thread: " + e.getMessage();
-        }
-    }
-
-    public void zipFolder(Path sourceFolderPath, Path zipPath) throws IOException {
-        logger.info("Iniciando zipping do diretório: {}", sourceFolderPath);
-
-        Path nodeModulesPath = sourceFolderPath.resolve("node_modules");
-        if (Files.exists(nodeModulesPath)) {
-            logger.info("Deletando node_modules em: {}", nodeModulesPath);
-            deleteFolder(nodeModulesPath);
-        }
-
-        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipPath.toFile()))) {
-            Files.walkFileTree(sourceFolderPath, new SimpleFileVisitor<Path>() {
-
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    logger.info("Adicionando arquivo ao ZIP: {}", file);
-                    zos.putNextEntry(new ZipEntry(sourceFolderPath.relativize(file).toString()));
-                    Files.copy(file, zos);
-                    zos.closeEntry();
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    if (!dir.equals(nodeModulesPath)) {
-                        logger.info("Adicionando diretório ao ZIP (excluindo node_modules): {}", dir);
-                        zos.putNextEntry(new ZipEntry(sourceFolderPath.relativize(dir).toString() + "/"));
-                        zos.closeEntry();
-                    }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            logger.error("Erro ao criar ZIP: {}", e.getMessage(), e);
-            throw e;
-        }
-
-        logger.info("Zipping concluído com sucesso para: {}", zipPath);
-    }
-
-    private void deleteFolder(Path folderPath) throws IOException {
-        logger.info("Iniciando deleção do diretório: {}", folderPath);
-        Files.walk(folderPath)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(file -> {
-                    logger.info("Deletando: {}", file.getPath());
-                    file.delete();
-                });
-        logger.info("Diretório deletado com sucesso: {}", folderPath);
-    }
-
-    public String getProjectPath(String projectName) {
-        // Utiliza File.separator para garantir compatibilidade entre diferentes sistemas operacionais
-        return currentDirectory + File.separator + projectName;
-    }
-
-    public ResponseEntity<String> createProject(String threadId) {
-        ResponseEntity<String> response = null;
-        try {
-
-            HttpHeaders headers = createHeaders();
-            HttpEntity<String> entity = new HttpEntity<>(headers);
-
-            response = restTemplate.exchange(
-                    openAiBaseUrl + "/threads/" + threadId + "/messages",
-                    HttpMethod.GET,
-                    entity,
-                    String.class
-            );
-
-            if (response.getBody() != null) {
-                JsonObject responseBody = JsonParser.parseString(response.getBody()).getAsJsonObject();
-                JsonArray messages = responseBody.getAsJsonArray("data");
-                if (!messages.isEmpty()) {
-                    JsonObject firstMessage = messages.get(0).getAsJsonObject();
-                    JsonArray content = firstMessage.getAsJsonArray("content");
-                    if (!content.isEmpty()) {
-                        JsonObject firstContent = content.get(0).getAsJsonObject();
-                        String value = firstContent.getAsJsonObject("text").get("value").getAsString();
-                        if (value.isEmpty()) {
-                            response = getThreadMessages(threadId);
-                            System.out.println("Aguardando API");
-                        } else {
-                            // Verificação de padrões no primeiro item de content
-                            if (containsPattern(value, "```cmd")) {
-                                System.out.println("Executando comando");
-                                regexCmdCode(response);
-                            }
-                        }
-                    } else {
-                        System.out.println("Aguardando API");
-                        response = getThreadMessages(threadId);
-                    }
-                }
-            }
-    } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return response;
-    }
-
     public ResponseEntity<String> addCode(String threadId) {
         ResponseEntity<String> response = null;
         try {
 
-            HttpHeaders headers = createHeaders();
+            HttpHeaders headers = threadService.createHeaders();
             HttpEntity<String> entity = new HttpEntity<>(headers);
 
             response = restTemplate.exchange(
@@ -673,7 +440,7 @@ public class CodeService {
                         JsonObject firstContent = content.get(0).getAsJsonObject();
                         String value = firstContent.getAsJsonObject("text").get("value").getAsString();
                         if (value.isEmpty()) {
-                            response = getThreadMessages(threadId);
+                            response = threadService.getThreadMessages(threadId);
                             System.out.println("Aguardando API");
                         } else {
                             // Verificação de padrões no primeiro item de content
@@ -689,14 +456,14 @@ public class CodeService {
                             }
                             String project = threadProjectMap.get(threadId);
                             //regexNodeCode(response, project);
-                            regexNextCode(response, project);
+                            //regexNextCode(response, project);
                             //regexReactCode(response, project);
-                            System.out.println("Criando Arquivos");
-                           // regexJavaCode(response, project);
+                            // regexJavaCode(response, project);
+                            regexPythonCode(response,project);
                         }
                     } else {
                         System.out.println("Aguardando API");
-                        response = getThreadMessages(threadId);
+                        response = threadService.getThreadMessages(threadId);
                     }
                 }
             }
@@ -705,6 +472,36 @@ public class CodeService {
         }
         return response;
     }
+
+    private void regexPythonCode(ResponseEntity<String> response, String project) throws IOException {
+        JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
+        JsonArray dataArray = responseObject.getAsJsonArray("data");
+
+        // Expressões regulares para capturar o caminho e o conteúdo
+        String patternNodeString = "```python\\n(.*?)```";
+        Pattern patternNode = Pattern.compile(patternNodeString, Pattern.DOTALL);
+
+        for (JsonElement dataElement : dataArray) {
+            JsonArray contentArray = dataElement.getAsJsonObject().getAsJsonArray("content");
+            if (contentArray.size() > 0) {
+                JsonObject contentObject = contentArray.get(0).getAsJsonObject();
+                if ("text".equals(contentObject.get("type").getAsString())) {
+                    JsonObject textObject = contentObject.getAsJsonObject("text");
+                    String textValue = textObject.get("value").getAsString();
+
+                    Matcher matcherNode = patternNode.matcher(textValue);
+
+                    // Encontra primeiro o path e depois o node, ambos devem existir para chamar o método
+                    while (matcherNode.find()) {
+                        String content = matcherNode.group(1).trim();
+                        projectService.createPythonFilesInProject(content, project);
+                    }
+                }
+            }
+        }
+    }
+
+
 
     private void regexNextCode(ResponseEntity<String> response, String project) throws IOException {
         JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
@@ -731,62 +528,121 @@ public class CodeService {
                     while (matcherPath.find() && matcherNode.find()) {
                         String path = matcherPath.group(1).trim();
                         String content = matcherNode.group(1).trim();
-                        createNextFilesInProject(path, content, project);
+                        projectService.createNextFilesInProject(path, content, project);
                     }
                 }
             }
         }
     }
 
-    private void createNextFilesInProject(String path, String content, String project) throws IOException {
-        Path pathToFile = Paths.get(getProjectPath(project), path); // Cria o Path para o arquivo
-        if (Files.notExists(pathToFile.getParent())) {
-            Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
-        }
-        // Escreve o conteúdo no arquivo, usando a opção CREATE para criar se não existir, caso contrário TRUNCATE_EXISTING para sobrescrever
-        Files.writeString(pathToFile, content, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-    }
 
-    private void regexReactCode(ResponseEntity<String> response, String project) throws IOException {
-            JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
-            JsonArray dataArray = responseObject.getAsJsonArray("data");
 
-            // Expressões regulares para capturar o caminho e o conteúdo
-            String patternReactString = "```react\\n(.*?)```";
-            Pattern patternReact = Pattern.compile(patternReactString, Pattern.DOTALL);
-            String patternPathString = "```path\\n(.*?)```";
-            Pattern patternPath = Pattern.compile(patternPathString, Pattern.DOTALL);
+    private void regexReactCode(ResponseEntity<String> response, String project) throws IOException, InterruptedException {
+        JsonObject responseObject = JsonParser.parseString(response.getBody()).getAsJsonObject();
+        JsonArray dataArray = responseObject.getAsJsonArray("data");
 
-            for (JsonElement dataElement : dataArray) {
-                JsonArray contentArray = dataElement.getAsJsonObject().getAsJsonArray("content");
-                if (contentArray.size() > 0) {
-                    JsonObject contentObject = contentArray.get(0).getAsJsonObject();
-                    if ("text".equals(contentObject.get("type").getAsString())) {
-                        JsonObject textObject = contentObject.getAsJsonObject("text");
-                        String textValue = textObject.get("value").getAsString();
 
-                        Matcher matcherReact = patternReact.matcher(textValue);
-                        Matcher matcherPath = patternPath.matcher(textValue);
+        String patternPathString = "```path\\n(.*?)```";
+        Pattern patternPath = Pattern.compile(patternPathString, Pattern.DOTALL);
 
-                        // Encontra primeiro o path e depois o node, ambos devem existir para chamar o método
-                        while (matcherPath.find() && matcherReact.find()) {
-                            String path = matcherPath.group(1).trim();
-                            String content = matcherReact.group(1).trim();
-                            createReactFilesInProject(path, content, project);
-                        }
+        String patternCssString = "```css\\n(.*?)```";
+        Pattern patternCss = Pattern.compile(patternCssString, Pattern.DOTALL);
+
+        String patternJsString = "```javascript\\n(.*?)```";
+        Pattern patternJs = Pattern.compile(patternJsString, Pattern.DOTALL);
+
+        // Expressões regulares para capturar o caminho e o conteúdo
+        String patternHtmlString = "```html\\n(.*?)```";
+        Pattern patternHtml = Pattern.compile(patternHtmlString, Pattern.DOTALL);
+
+        for (JsonElement dataElement : dataArray) {
+            JsonArray contentArray = dataElement.getAsJsonObject().getAsJsonArray("content");
+            if (contentArray.size() > 0) {
+                JsonObject contentObject = contentArray.get(0).getAsJsonObject();
+                if ("text".equals(contentObject.get("type").getAsString())) {
+                    JsonObject textObject = contentObject.getAsJsonObject("text");
+                    String textValue = textObject.get("value").getAsString();
+
+                    Matcher matcherHtml = patternHtml.matcher(textValue);
+                    Matcher matcherPath = patternPath.matcher(textValue);
+
+                    Matcher matcherCss = patternCss.matcher(textValue);
+                    Matcher matcherJs = patternJs.matcher(textValue);
+
+                    // Encontra primeiro o path e depois o node, ambos devem existir para chamar o método
+                    while (matcherPath.find() && matcherHtml.find()) {
+                        String path = matcherPath.group(1).trim();
+                        String content = matcherHtml.group(1).trim();
+                        projectService.createReactFilesInProject(path, content, project);
+                    }
+
+                    while (matcherPath.find() && matcherJs.find()) {
+                        String path = matcherPath.group(1).trim();
+                        String content = matcherJs.group(1).trim();
+                        projectService.createReactFilesInProject(path, content, project);
+                    }
+
+                    while (matcherPath.find() && matcherCss.find()) {
+                        String path = matcherPath.group(1).trim();
+                        String content = matcherCss.group(1).trim();
+                        projectService.createReactFilesInProject(path, content, project);
                     }
                 }
             }
         }
-
-        private void createReactFilesInProject(String path, String content, String projectName) throws IOException {
-            Path pathToFile = Paths.get(getProjectPath(projectName), path); // Cria o Path para o arquivo
-            if (Files.notExists(pathToFile.getParent())) {
-                Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
-            }
-            // Escreve o conteúdo no arquivo, usando a opção CREATE para criar se não existir, caso contrário TRUNCATE_EXISTING para sobrescrever
-            Files.writeString(pathToFile, content, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        }
-
+        sendCodeToAssistantTestReact(response, project);
     }
+
+
+
+    private void sendCodeToAssistantTestReact(ResponseEntity<String> response, String projectName) throws IOException, InterruptedException {
+
+        if (response.getBody() != null) {
+            JsonObject responseBody = JsonParser.parseString(response.getBody()).getAsJsonObject();
+            JsonArray messages = responseBody.getAsJsonArray("data");
+            if (!messages.isEmpty()) {
+                JsonObject firstMessage = messages.get(0).getAsJsonObject();
+                JsonArray content = firstMessage.getAsJsonArray("content");
+                if (!content.isEmpty()) {
+                    JsonObject firstContent = content.get(0).getAsJsonObject();
+                    String value = firstContent.getAsJsonObject("text").get("value").getAsString();
+
+                    String threadIdTest = assistantRepository.findTestThreadIdByProjectName(projectName);
+
+                    if(threadIdTest != null){
+                        String threadId = threadService.addMessageToThread(threadIdTest,value, false, "");
+
+                        regexTestNode(threadService.getThreadMessages(threadId), projectName);
+                    }else {
+
+                        String threadId = threadService.createThread("nome:" + projectName + "," + "testReact" + "\n" + value);
+
+                        regexTestNode(threadService.getThreadMessages(threadId), projectName);
+
+                        Optional<Project> existingProject = projectRepository.findByName(projectName);
+
+                        Project project = existingProject.orElseGet(() -> {
+                            Project newProject = new Project();
+                            newProject.setName(projectName);
+                            newProject.setPathToProject("C:\\Projects\\" + projectName);
+                            return newProject;
+                        });
+
+                        Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
+
+                        Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
+                        assistant.setThreadId(threadId);
+                        assistant.setProject(project);
+
+                        assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
+                        project.getAssistants().add(assistant);
+
+                        projectRepository.save(project);
+                    }
+                }
+            }
+        }
+    }
+}
+
 

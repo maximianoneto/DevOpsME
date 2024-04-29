@@ -44,127 +44,6 @@ public class CodeController {
     private static final Logger logger = LoggerFactory.getLogger(CodeController.class);
     private final Dotenv dotenv = Dotenv.configure().load();
 
-    @Operation(summary = "Creates a Thread with an Initial Message for the AI Assistants",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Successful Run",
-                            content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = RequestThreadDTO.class))),
-                    @ApiResponse(responseCode = "400", description = "Erro na requisição",
-                            content = @Content)
-            })
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(examples = {
-            @ExampleObject(
-                    name = "Request sample",
-                    summary = "Request example",
-                    value = "{\"initialMessage\": \"nome:Hostel, Linguagem de programação: Java 17, Framework: Spring Boot, Gerenciador de Dependencia: gradle, Dependencias adicionais: lombok\"}"
-            )
-    }))
-    @CrossOrigin(origins = "*")
-    @PostMapping("/createThread")
-    public ResponseEntity<String> createThread(@RequestBody Map<String, String> payload) {
-        try {
-            String initialMessage = payload.get("initialMessage");
-            if (initialMessage == null) {
-                return ResponseEntity.badRequest().body("Initial Message Required");
-            }
-            String response = codeService.createThread(initialMessage);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Error creating thread", e);
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }
-    }
-
-    @Operation(summary = "Retrieves messages from a Specific Thread",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Messages successfully retrieved",
-                            content = @Content),
-                    @ApiResponse(responseCode = "500", description = "Error retrieving response",
-                            content = @Content)
-            })
-    @CrossOrigin(origins = "*")
-    @GetMapping(value = "/getThreadMessages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<String> getThreadMessages(@RequestParam String threadId) throws IOException, InterruptedException {
-        try {
-
-            if (threadId == null || threadId.trim().isEmpty()) {
-               return ResponseEntity.noContent().build();
-            }
-
-            return codeService.getThreadMessages(threadId);
-        }catch (Exception ex){
-            return ResponseEntity.badRequest().body("Erro");
-        }
-    }
-
-    @Operation(summary = "Adiciona uma nova mensagem a um Thread específico",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Mensagem adicionada com sucesso",
-                            content = @Content(mediaType = "application/json")),
-                    @ApiResponse(responseCode = "400", description = "Dados inválidos fornecidos",
-                            content = @Content),
-                    @ApiResponse(responseCode = "404", description = "Thread não encontrado",
-                            content = @Content)
-            })
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(examples = {
-            @ExampleObject(
-                    name = "Exemplo de requisição",
-                    summary = "Exemplo de corpo da requisição",
-                    value = "{\"threadId\": \"thread_exemplo123\", \"message\": \"Nova mensagem para o thread.\"}"
-            )
-    }))
-    @CrossOrigin(origins = "*")
-    @PostMapping("/addMessageToThread")
-    public ResponseEntity<String> addMessageToThread(@RequestBody Map<String, String> request) {
-        try {
-            String threadId = request.get("threadId");
-            String message = request.get("message");
-            if (threadId == null || threadId.isEmpty()) {
-                return ResponseEntity.badRequest().body("O 'threadId' é obrigatório.");
-            }
-            if (message == null || message.isEmpty()) {
-                return ResponseEntity.badRequest().body("A 'message' é obrigatória.");
-            }
-            String response = codeService.addMessageToThread(threadId, message);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Erro ao adicionar mensagem ao thread", e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    @Operation(summary = "Cria um projeto atrelado um threadId",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Projeto Criado com Sucesso.",
-                            content = @Content(mediaType = "application/json")),
-                    @ApiResponse(responseCode = "400", description = "Dados inválidos fornecidos",
-                            content = @Content),
-                    @ApiResponse(responseCode = "404", description = "threadId não encontrado",
-                            content = @Content)
-            })
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(examples = {
-            @ExampleObject(
-                    name = "Exemplo de requisição",
-                    summary = "Exemplo de corpo da requisição",
-                    value = "{\"threadId\": \"thread_1vGxXnYfJwfO7HioNTN1fwMD\"}"
-            )
-    }))
-    @CrossOrigin(origins = "*")
-    @PostMapping("/createProject")
-    public ResponseEntity<String> createProject(@RequestBody Map<String, String> request) {
-        try {
-            String threadId = request.get("threadId");
-            if (threadId == null || threadId.isEmpty()) {
-                return ResponseEntity.badRequest().body("O 'projectName' é obrigatório.");
-            }
-            String response = String.valueOf(codeService.createProject(threadId));
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Erro ao criar projeto.", e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
     @Operation(summary = "Adiciona código a um projeto atrelado ao threadId",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Código Adicionado com Sucesso.",
@@ -196,8 +75,6 @@ public class CodeController {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
-
 
     @Operation(summary = "Receives an Image and a Message and returns the code for a User Story VIEW.",
             responses = {
@@ -239,54 +116,5 @@ public class CodeController {
         }
     }
 
-    @CrossOrigin(origins = "*")
-    @GetMapping("/downloadProject")
-    public ResponseEntity<StreamingResponseBody> downloadProject(@RequestParam String projectName, HttpServletResponse response) {
-        try {
-            logger.info("Iniciando download do projeto: {}", projectName);
-            String projectPathString = codeService.getProjectPath(projectName);
 
-            logger.info("Caminho do projeto obtido: {}", projectPathString);
-            Path projectPath = Paths.get(projectPathString);
-
-            logger.info("Path do projeto: {}", projectPath);
-            Path zipPath = Paths.get(projectPathString + ".zip");
-
-            logger.info("Caminho do arquivo ZIP: {}", zipPath);
-
-            codeService.zipFolder(projectPath, zipPath);
-            logger.info("ZIP criado com sucesso. Preparando para download: {}", zipPath.getFileName().toString());
-
-
-            // Define o tipo de conteúdo e o cabeçalho de disposição de conteúdo para o arquivo
-            response.setContentType("application/zip");
-            response.setHeader("Content-Disposition", "attachment; filename=\"" + zipPath.getFileName().toString() + "\"");
-            System.out.println("caminho do arquivo com o . zip"+zipPath.getFileName().toString());
-
-            StreamingResponseBody stream = outputStream -> {
-                try (InputStream is = new FileInputStream(zipPath.toFile())) {
-                    IOUtils.copy(is, outputStream);
-                } catch (FileNotFoundException fnfe) {
-                    logger.error("Arquivo não encontrado: " + zipPath, fnfe);
-                    throw new RuntimeException("Arquivo não encontrado: " + fnfe.getMessage());
-                } catch (IOException ioe) {
-                    logger.error("Erro de IO ao streamar o arquivo: " + zipPath, ioe);
-                    throw new RuntimeException("Erro de IO ao streamar o arquivo: " + ioe.getMessage());
-                } catch (Exception e) {
-                    logger.error("Erro geral ao streamar o arquivo: " + zipPath, e);
-                    throw new RuntimeException("Erro ao streamar o arquivo: " + e.getMessage());
-                }
-            };
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType("application/zip"))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipPath.getFileName().toString() + "\"")
-                    .body(stream);
-
-
-        } catch (Exception ex) {
-            logger.error("Erro ao baixar o projeto", ex);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
 }
