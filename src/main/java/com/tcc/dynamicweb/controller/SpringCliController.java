@@ -30,7 +30,6 @@ public class SpringCliController {
             return ResponseEntity.ok(dependencies);
         } catch (Exception e) {
             logger.error("Erro ao obter as dependências: ", e);
-            // Inclui a mensagem de erro no corpo da resposta de erro
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body("Erro ao obter as dependências: " + e.getMessage());

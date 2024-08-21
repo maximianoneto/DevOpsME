@@ -147,7 +147,6 @@ public class ThreadService {
                 return threadId;
             }
         } else {
-            // Trate o caso de erro conforme necessário
             return "Erro ao criar thread: " + response.getStatusCode();
         }
 
@@ -159,7 +158,6 @@ public class ThreadService {
         // Divide a string pelo padrão ", " para lidar com múltiplos elementos
         String[] parts = initialMessageContent.split(",");
         for (String part : parts) {
-            // Usa expressão regular para encontrar a parte que começa com "nome:" (ignora maiúsculas/minúsculas)
             if (part.trim().toLowerCase().matches("^nome:.*")) {
                 String[] nameSplit = part.split(":", 2); // Divide apenas no primeiro ":", resultando em 2 partes
                 if (nameSplit.length > 1) { // Verifica se existe algo após "nome:"
@@ -167,7 +165,7 @@ public class ThreadService {
                 }
             }
         }
-        return "Nome do Projeto Desconhecido"; // Retorna isso se o nome do projeto não for encontrado
+        return "Nome do Projeto Desconhecido";
     }
 
     public String sendRun(String threadId, String assistantId) {
@@ -245,7 +243,7 @@ public class ThreadService {
             ObjectMapper mapper = new ObjectMapper();
 
             if (requestFeatureDependsBackend) {
-                String backendProjectName = projectNameBackend; // A lógica para determinar o correspondente backend.
+                String backendProjectName = projectNameBackend;
                 String backendTestThreadId = assistantRepository.findTestThreadIdByProjectName(backendProjectName);
 
                 if (backendTestThreadId != null) {
@@ -262,7 +260,7 @@ public class ThreadService {
 
                                 ObjectNode rootNode = mapper.createObjectNode();
                                 rootNode.put("role", "user");
-                                rootNode.put("content", textValue + message); // Combinação segura de strings
+                                rootNode.put("content", textValue + message);
                                 String requestBody = mapper.writeValueAsString(rootNode);
 
                                 HttpEntity<String> request = new HttpEntity<>(requestBody, headers);
@@ -274,7 +272,6 @@ public class ThreadService {
                                     sendRun(threadId, assistantId);
                                     return threadId;
                                 } else {
-                                    // Tratar erros conforme necessário
                                     return "Erro ao adicionar mensagem ao Thread: " + response1.getStatusCode();
                                 }
                             }
@@ -296,14 +293,11 @@ public class ThreadService {
                     sendRun(threadId, assistantId);
                     return threadId;
                 } else {
-                    // Tratar erros conforme necessário
                     return "Erro ao adicionar mensagem ao Thread: " + response1.getStatusCode();
                 }
             }
 
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
+        } catch (InterruptedException | IOException e) {
             throw new RuntimeException(e);
         } catch (JsonSyntaxException e) {
             throw new RuntimeException(e);

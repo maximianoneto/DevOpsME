@@ -1,36 +1,22 @@
 package com.tcc.dynamicweb.controller;
 
-import com.tcc.dynamicweb.model.dto.RequestThreadDTO;
 import com.tcc.dynamicweb.service.CodeService;
 import io.github.cdimascio.dotenv.Dotenv;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletResponse;
-import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-//import org.springframework.ai.chat.ChatResponse;
-//import org.springframework.ai.openai.OpenAiChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-import reactor.core.publisher.Flux;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 
 @RestController
@@ -65,10 +51,11 @@ public class CodeController {
     public ResponseEntity<String> addCode(@RequestBody Map<String, String> request) {
         try {
             String threadId = request.get("threadId");
+            String projectName = request.get("projectName");
             if (threadId == null || threadId.isEmpty()) {
                 return ResponseEntity.badRequest().body("O 'threadId' é obrigatório.");
             }
-            String response = String.valueOf(codeService.addCode(threadId));
+            String response = String.valueOf(codeService.addCode(threadId, projectName));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Erro ao criar projeto.", e);

@@ -27,10 +27,8 @@ public class SpringCliService {
         String windowsCommand = command.replace("/", "\\"); // Ajuste para o sistema operacional Windows
 
         try {
-            // Executa o comando
             Process process = Runtime.getRuntime().exec(windowsCommand, null, new File(currentDirectory));
 
-            // Captura a saída do comando
             try (InputStream stdInput = process.getInputStream();
                  BufferedReader reader = new BufferedReader(new InputStreamReader(stdInput))) {
                 String line;
@@ -39,16 +37,14 @@ public class SpringCliService {
                 }
             }
 
-            // Captura erros do comando, se houver
             try (InputStream stdError = process.getErrorStream();
                  BufferedReader readerErr = new BufferedReader(new InputStreamReader(stdError))) {
                 String line;
                 while ((line = readerErr.readLine()) != null) {
-                    System.err.println(line); // Para propósitos de debugging, pode ser removido ou logado
+                    System.err.println(line);
                 }
             }
 
-            // Aguarda até que o processo termine e verifica o código de saída
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 System.err.println("O comando terminou com erros. Código de saída: " + exitCode);
@@ -84,7 +80,6 @@ public class SpringCliService {
                 readingParameters = true;
                 continue;
             } else if (line.trim().isEmpty() || line.startsWith("+---")) {
-                // Ignore empty lines and table borders
                 continue;
             }
 

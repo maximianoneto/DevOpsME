@@ -124,10 +124,10 @@ public class ProjectService {
     }
 
     //String currentDirectory = "/projects"; Prod
-    String currentDirectory = "C:\\Projects"; // Local
+    static String currentDirectory = "C:\\Projects"; // Local
 
     public String getProjectPath(String projectName) {
-        // Utiliza File.separator para garantir compatibilidade entre diferentes sistemas operacionais
+
         return currentDirectory + File.separator + projectName;
     }
 
@@ -136,14 +136,14 @@ public class ProjectService {
         Path projectFilePath = Paths.get(getProjectPath(projectName), "build.gradle");
         List<String> lines = Files.readAllLines(projectFilePath);
         AtomicBoolean insideDependenciesBlock = new AtomicBoolean(false);
-        String newLine = "    " + dependency; // Presume que a indentação usa espaços. Ajuste conforme necessário.
+        String newLine = "    " + dependency;
 
         List<String> updatedLines = lines.stream().map(line -> {
             if (line.trim().equals("dependencies {")) {
                 insideDependenciesBlock.set(true);
             } else if (line.trim().equals("}") && insideDependenciesBlock.get()) {
                 insideDependenciesBlock.set(false);
-                return newLine + "\n" + line; // Adiciona a nova dependência antes do fechamento do bloco.
+                return newLine + "\n" + line;
             }
             return line;
         }).collect(Collectors.toList());
@@ -161,7 +161,6 @@ public class ProjectService {
 
         String fileContent = new String(Files.readAllBytes(projectFilePath));
 
-        // Apenas adicione o applicationBlock no arquivo application.properties
         String updatedContent = fileContent + "\n" + applicationBlock;
 
         Files.writeString(projectFilePath, updatedContent, StandardOpenOption.TRUNCATE_EXISTING);
@@ -178,14 +177,13 @@ public class ProjectService {
             String classContent = classEntry.getValue();
             String packageName = extractPackageName(classContent); // Extrai o nome do pacote
 
-            // Define o caminho base com base no nome da classe
+
             String basePath = className.contains("Test") ? testBasePath : mainBasePath;
 
             // Constrói o caminho do diretório baseado no nome do pacote
             String packagePath = packageName.replace('.', File.separatorChar);
             Path fullDirPath = Paths.get(basePath, packagePath);
 
-            // Cria o diretório do pacote, se necessário
             if (!Files.exists(fullDirPath)) {
                 Files.createDirectories(fullDirPath);
             }
@@ -202,7 +200,7 @@ public class ProjectService {
         if (matcher.find()) {
             return matcher.group(1);
         }
-        return null; // Ou retorne um valor padrão, conforme necessário
+        return null;
     }
 
     public Map<String, String> extractJavaClasses(String classContent) {

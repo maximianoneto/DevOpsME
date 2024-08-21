@@ -1,9 +1,10 @@
 package com.tcc.dynamicweb.service;
 
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.gson.*;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.tcc.dynamicweb.model.Assistant;
 import com.tcc.dynamicweb.model.Project;
 import com.tcc.dynamicweb.repository.AssistantRepository;
@@ -15,21 +16,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
-
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 @Service
 public class CodeService {
@@ -84,7 +77,7 @@ public class CodeService {
                         String commandBlock = matcher.group(1).trim();
                         String[] commands = commandBlock.split("\\n"); // Divide em linhas separadas se houver mais de um comando
                         for (String command : commands) {
-                            command = command.trim(); // Remova espaços em branco desnecessários
+                            command = command.trim();
                             executeCommand(command);
                         }
                     }
@@ -104,20 +97,21 @@ public class CodeService {
             String nodePath = "C:\\Program Files\\nodejs";
             env.put("PATH", nodePath + ";" + env.get("PATH"));
 
-            // Verifica se o comando é um comando 'cd'
+            String springPath = "D:\\spring-3.2.2\\bin";
+            env.put("PATH", springPath + ";" + env.get("PATH"));
+
             if (command.startsWith("cd ")) {
-                // Atualiza o diretório atual
-                String commandPart = command.substring(3).trim(); // Remove o prefixo "cd " e espaços extras
-                String[] parts = commandPart.split("&&"); // Divide a string baseando-se em "&&"
-                String newDirectory = parts[0].trim(); // Pega apenas a primeira parte e remove espaços extras
+                String commandPart = command.substring(3).trim();
+                String[] parts = commandPart.split("&&");
+                String newDirectory = parts[0].trim();
 
                 currentDirectory = new File(currentDirectory, newDirectory).getCanonicalPath();
                 System.out.println("Diretório mudado para: " + currentDirectory);
-                return; // Não precisa executar o comando 'cd' como um processo externo
+                return;
             }
 
             // Verifica se o comando contém --name=nome-arquivo nome-arquivo se não contém, adiciona o nome-arquivo um espaço após o fim do comando
-            // faça um regex para retirar o nome do projeto da string e vincular ao comando de execução
+            // regex para retirar o nome do projeto da string e vincular ao comando de execução
             if (command.contains("--name=")) {
                 String projectName = command.substring(command.lastIndexOf("--name=") + 7);
                 //verifica se o nome do projeto esta contido duas vezes na string comand
@@ -131,34 +125,32 @@ public class CodeService {
                 return;
             }
 
-            // Criar um Runtime e executar o comando usando o Bash do Git
-            //String cmdPrefix = "cmd /c "; // Deixar essa linha descomentada para rodar localmente
 
-            //String windowsCommand = command.replace("/", "\\"); // Garantir o uso de separadores de caminho do Windows
+            String cmdPrefix = "cmd /c "; // Deixar essa linha descomentada para rodar localmente
 
-            // Executar o comando
-            ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", command);
+            String windowsCommand = command.replace("/", "\\"); // Garantir o uso de separadores de caminho do Windows
+
+            ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", windowsCommand);
             processBuilder.directory(new File(currentDirectory));
             processBuilder.environment().putAll(env); // Adiciona o PATH atualizado
             Process process = processBuilder.start();
-            // Redirecionar a saída de erro e a saída padrão para o console
+
             InputStream stdInput = process.getInputStream();
             InputStream stdError = process.getErrorStream();
 
-            // Ler a saída do comando
+
             BufferedReader reader = new BufferedReader(new InputStreamReader(stdInput));
             String line;
             while ((line = reader.readLine()) != null) {
                 System.out.println(line);
             }
 
-            // Ler erros do comando, se houver
+
             BufferedReader readerErr = new BufferedReader(new InputStreamReader(stdError));
             while ((line = readerErr.readLine()) != null) {
                 System.err.println(line);
             }
 
-            // Aguardar até que o processo seja finalizado e verificar o código de saída
             int exitCode = process.waitFor();
             if (exitCode == 0) {
                 System.out.println("Comando executado com sucesso: " + command);
@@ -414,7 +406,7 @@ public class CodeService {
     }
 
 
-    public ResponseEntity<String> addCode(String threadId) {
+    public ResponseEntity<String> addCode(String threadId, String projectName) {
         ResponseEntity<String> response = null;
         try {
 
@@ -454,12 +446,12 @@ public class CodeService {
                                     executeCommand(command);
                                 }
                             }
-                            String project = threadProjectMap.get(threadId);
+                            //String project = threadProjectMap.get(threadId);
                             //regexNodeCode(response, project);
                             //regexNextCode(response, project);
                             //regexReactCode(response, project);
-                            // regexJavaCode(response, project);
-                            regexPythonCode(response,project);
+                             regexJavaCode(response, projectName);
+                            //regexPythonCode(response,project);
                         }
                     } else {
                         System.out.println("Aguardando API");

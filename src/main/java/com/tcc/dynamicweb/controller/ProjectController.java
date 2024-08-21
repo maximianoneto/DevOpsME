@@ -99,7 +99,6 @@ public class ProjectController {
             logger.info("ZIP criado com sucesso. Preparando para download: {}", zipPath.getFileName().toString());
 
 
-            // Define o tipo de conteúdo e o cabeçalho de disposição de conteúdo para o arquivo
             response.setContentType("application/zip");
             response.setHeader("Content-Disposition", "attachment; filename=\"" + zipPath.getFileName().toString() + "\"");
             System.out.println("caminho do arquivo com o . zip"+zipPath.getFileName().toString());
