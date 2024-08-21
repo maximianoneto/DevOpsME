@@ -2,19 +2,24 @@
 
 ## Clonando o Projeto
 1. Clone o repositório do projeto para sua máquina local usando o seguinte comando:
+   ```bash
    git clone https://github.com/maximianoneto/DynamicWeb.git
 
 ## Construindo o Projeto
 1. Abra um terminal e navegue até o diretório do projeto clonado.
 2. Execute o seguinte comando para construir o projeto:
-   ./gradlew build
+  ```bash 
+   ./gradlew build 
+   ```  
 
 # Configuração do Projeto DynamicWeb
 
 ## Rodando a aplicação utilizando docker
 1. Crie um arquivo `.env` na raiz do projeto com a seguinte variável de ambiente:
-   OPENAI_API_KEY="Sua-Chave-De-Api-OpenAI"
-
+ ```bash 
+  OPENAI_API_KEY=Sua-Chave-De-Api-OpenAI
+  ```
+   
 2. Abra o terminal e navegue até a raiz do projeto e depois execute o comando abaixo:
 <pre><code>docker build -t dockerfile .</code></pre>
 
@@ -51,7 +56,7 @@ URL: localhost:8080/
 
 SWAGGER: http://localhost:8080/swagger-ui/index.html#/
 
-A aplicação expõe as seguintes rotas através do `CodeController`:
+A aplicação expõe as seguintes rotas através do `ThreadController`:
 
 ### 1. Criar Thread
 - **Endpoint**: `POST localhost:8080/api/createThread`
@@ -75,6 +80,8 @@ A aplicação expõe as seguintes rotas através do `CodeController`:
   "message": "User Story 1: Employee Authentication As a hostel employee,I want to securely log in to the hostel management system,So that I can access the customer information and perform my duties.Acceptance Criteria:The login screen must have input fields for the username and password.After entering credentials, an employee should be able to log in by clicking the '\''Sign in'\'' button.The system should handle authentication and display an error message if the login fails."
   }'`
 
+Rotas referente ao `ProjectController`:
+
 ### 4. Cria um projeto atrelado a um threadId
 - **Endpoint**: `POST /api/createProject`
 - **Curl**: `curl --location 'localhost:8080/api/createProject' \
@@ -83,7 +90,13 @@ A aplicação expõe as seguintes rotas através do `CodeController`:
   "threadId":"threadId"
   }'`
 
-### 5. Adiciona código a um projeto atrelado a um threadId
+### 5. Download do Projeto em arquivo .zip
+- **Endpoint**: `GET localhost:8080/api/downloadProject?projectName=padaria`
+- **Curl**: `curl --location 'localhost:8080/api/downloadProject?projectName=padaria'`
+
+Rotas referente ao `CodeController`:
+
+### 6. Adiciona código a um projeto atrelado a um threadId
 - **Endpoint**: `POST /api/createProject`
 - **Descrição**: Recupera mensagens de uma thread específica.
 - **Curl**: `curl --location 'localhost:8080/api/addCode' \
@@ -92,7 +105,7 @@ A aplicação expõe as seguintes rotas através do `CodeController`:
   "threadId":"threadId"
   }'`
 
-### 6. Analisa Protótipo de baixa fidelidade e retorna o código referente
+### 7. Analisa Protótipo de baixa fidelidade e retorna o código referente
 - **Endpoint**: `POST /analyze`
 - **Descrição**: Envia uma imagem para análise usando a API da OpenAI.
 - **Curl**: `curl --location 'localhost:8080/api/analyze' \
@@ -100,11 +113,39 @@ A aplicação expõe as seguintes rotas através do `CodeController`:
   --form 'message="Gere o código em html, css, javascript"'`
 
 
-### 7. Download do Projeto em arquivo .zip
-- **Endpoint**: `GET localhost:8080/api/downloadProject?projectName=padaria`
-- **Curl**: `curl --location 'localhost:8080/api/downloadProject?projectName=padaria'`
+Rotas referente ao `SpringCLIController`:
 
-### 8. Retorna a lista de dependências atualizadas do Spring
+### 9. Retorna a lista de dependências atualizadas do Spring
 - **Endpoint**: `GET localhost:8080/api/spring/dependencies`
 - **Curl**: `curl --location 'localhost:8080/api/spring/dependencies'`
 - **OBS**: Para o funcionamento correto dessa rota a instalação do Spring CLI é necessária.
+
+Rotas referente ao `GitHubController`:
+
+### 10. Cria um novo repositório no GitHub e faz commit dos arquivos
+- **Endpoint**: `POST localhost:8080/github/repository`
+- **Curl**: `curl --location 'localhost:8080/github/repository' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "projectName": "MyNewProject",
+  "projectDescription": "This is a new project created via API"
+  }'`
+- **Payload**: `{
+  "projectName": "<nome_do_projeto>",
+  "projectDescription": "<descrição_do_projeto>"
+  }` 
+
+Rotas referente ao `LocalGitController`:
+
+### 11. Inicializar Repositório Git Local
+- **Endpoint**: `POST localhost:8080/git/initialize`
+- **Curl**: `curl --location 'localhost:8080/git/initialize?projectName=MyNewProject'`
+
+
+### 12. Comitar Alterações no Repositório Git Local
+- **Endpoint**: `POST localhost:8080/git/commit`
+- **Curl**: `curl --location 'localhost:8080/git/commit?projectName=MyNewProject&commitMessage=Initial%20commit`
+
+### 13. Reverter para um Commit Anterior no Repositório Git Local
+- **Endpoint**: `POST localhost:8080/git/rollback`
+- **Curl**: `curl --location 'localhost:8080/git/rollback?projectName=MyNewProject&commitId=abc123'`
