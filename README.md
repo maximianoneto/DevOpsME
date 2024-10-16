@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="PT/BR">
 <head>
-    <title>DynamicWeb</title>
 </head>
 <body>
     <h1>DynamicWeb</h1>
