@@ -35,7 +35,6 @@
             </ul>
         </li>
         <li><a href="#dependências-do-projeto">Dependências do Projeto</a></li>
-        <li><a href="#diretrizes-de-contribuição">Diretrizes de Contribuição</a></li>
         <li><a href="#informações-de-contato">Informações de Contato</a></li>
     </ul>
     <h2 id="visão-geral-da-arquitetura">Visão Geral da Arquitetura</h2>
