@@ -358,7 +358,7 @@ public class CodeService {
 
     public String createPayload(String base64Image, String message) {
         JsonObject payloadObj = new JsonObject();
-        payloadObj.addProperty("model", "gpt-4-vision-preview");
+        payloadObj.addProperty("model", "gpt-4o");
 
         JsonArray messagesArray = new JsonArray();
         JsonObject messageObj = new JsonObject();
@@ -446,12 +446,28 @@ public class CodeService {
                                     executeCommand(command);
                                 }
                             }
-                            //String project = threadProjectMap.get(threadId);
-                            //regexNodeCode(response, project);
-                            //regexNextCode(response, project);
-                            //regexReactCode(response, project);
-                             regexJavaCode(response, projectName);
-                            //regexPythonCode(response,project);
+                            Optional<Project> project = projectRepository.findByName(projectName);
+                            String language = project.get().getProgrammingLanguague();
+                            switch (language) {
+                                case "java":
+                                    regexJavaCode(response, projectName);
+                                    break;
+                                case "python":
+                                    regexPythonCode(response, projectName);
+                                    break;
+                                case "node":
+                                    regexNodeCode(response, projectName);
+                                    break;
+                                case "next":
+                                    regexNextCode(response, projectName);
+                                    break;
+                                case "react":
+                                    regexReactCode(response, projectName);
+                                    break;
+                                default:
+                                    System.out.println("Tipo de projeto desconhecido: " + projectName);
+                                    break;
+                            }
                         }
                     } else {
                         System.out.println("Aguardando API");

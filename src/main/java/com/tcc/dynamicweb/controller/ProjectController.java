@@ -68,11 +68,11 @@ public class ProjectController {
             String projectName = request.get("projectName");
             String type = request.get("type");
             String additionalInformation = request.get("additionalInformation");
-
+            String programmingLanguage = request.get("programmingLanguage");
             if (threadId == null || threadId.isEmpty()) {
                 return ResponseEntity.badRequest().body("O 'projectName' é obrigatório.");
             }
-            String response = String.valueOf(projectService.createProject(projectName,type,threadId,additionalInformation));
+            String response = String.valueOf(projectService.createProject(projectName,type,threadId,additionalInformation, programmingLanguage));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Erro ao criar projeto.", e);

@@ -62,7 +62,7 @@ public class ProjectService {
     @Autowired
     private CodeService codeService;
 
-    public ResponseEntity<String> createProject(String projectName, String type, String threadId, String additionalInformation) {
+    public ResponseEntity<String> createProject(String projectName, String type, String threadId, String additionalInformation, String programmingLanguage) {
         ResponseEntity<String> response = null;
         try {
 
@@ -97,6 +97,7 @@ public class ProjectService {
                                 project.setName(projectName);
                                 project.setType(type);
                                 project.setAdditionalInformation(additionalInformation);
+                                project.setProgrammingLanguague(programmingLanguage);
                                 Optional<Assistant> optionalAssistant = assistantRepository.findAssistantByThreadId(threadId);
 
                                 Assistant assistant = optionalAssistant.orElseGet(() -> new Assistant());

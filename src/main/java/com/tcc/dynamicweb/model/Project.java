@@ -22,6 +22,9 @@ public class Project {
     @Column(name = "type")
     private String type;
 
+    @Column(name = "programming_language")
+    private String programmingLanguague;
+
     @Column(name = "additional_information")
     private String additionalInformation;
 
