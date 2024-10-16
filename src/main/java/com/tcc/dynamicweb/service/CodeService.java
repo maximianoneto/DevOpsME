@@ -86,65 +86,71 @@ public class CodeService {
         }
     }
 
-    //String currentDirectory = "/projects"; Prod
-    String currentDirectory = "C:\\Projects"; // Local
+    String currentDirectory = "/projects";
+    //String currentDirectory = "C:\\Projects"; // Local
 
     private void executeCommand(String command) {
-
         try {
-
+            String osName = System.getProperty("os.name").toLowerCase();
+            String commandPrefix;
+            String currentDirectory;
             Map<String, String> env = new HashMap<>(System.getenv());
-            String nodePath = "C:\\Program Files\\nodejs";
-            env.put("PATH", nodePath + ";" + env.get("PATH"));
 
-            String springPath = "D:\\spring-3.2.2\\bin";
-            env.put("PATH", springPath + ";" + env.get("PATH"));
+            if (osName.contains("win")) {
+                commandPrefix = "cmd";
+                currentDirectory = "C:\\Projects";
+                String nodePath = "C:\\Program Files\\nodejs";
+                env.put("PATH", nodePath + ";" + env.get("PATH"));
 
+                String springPath = "D:\\spring-3.2.2\\bin";
+                env.put("PATH", springPath + ";" + env.get("PATH"));
+            } else {
+                // Unix/Linux-specific settings
+                commandPrefix = "/bin/sh";
+                currentDirectory = "/Projects"; // Adjust as needed for Linux
+                // Update environment variables for Unix/Linux
+                String nodePath = "/usr/bin"; // Adjust to where Node.js is installed
+                env.put("PATH", nodePath + ":" + env.get("PATH"));
+                // Assuming Spring Boot CLI is installed and added to PATH in Dockerfile
+            }
+
+            // Handle 'cd' command
             if (command.startsWith("cd ")) {
                 String commandPart = command.substring(3).trim();
                 String[] parts = commandPart.split("&&");
                 String newDirectory = parts[0].trim();
 
                 currentDirectory = new File(currentDirectory, newDirectory).getCanonicalPath();
-                System.out.println("Diretório mudado para: " + currentDirectory);
+                System.out.println("Directory changed to: " + currentDirectory);
                 return;
             }
 
-            // Verifica se o comando contém --name=nome-arquivo nome-arquivo se não contém, adiciona o nome-arquivo um espaço após o fim do comando
-            // regex para retirar o nome do projeto da string e vincular ao comando de execução
+            // Handle commands with '--name='
             if (command.contains("--name=")) {
                 String projectName = command.substring(command.lastIndexOf("--name=") + 7);
-                //verifica se o nome do projeto esta contido duas vezes na string comand
                 if (!projectName.contains(" ")) {
                     command = command + " " + projectName;
                 }
-
             }
 
-            if (command.contains("npm start") || command.contentEquals("npm start") || command.contentEquals("npm test") || command.contentEquals("npm test")) {
+            // Skip certain commands
+            if (command.equals("npm start") || command.equals("npm test")) {
                 return;
             }
 
-
-            String cmdPrefix = "cmd /c "; // Deixar essa linha descomentada para rodar localmente
-
-            String windowsCommand = command.replace("/", "\\"); // Garantir o uso de separadores de caminho do Windows
-
-            ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", windowsCommand);
+            ProcessBuilder processBuilder = getProcessBuilder(command, osName, commandPrefix);
             processBuilder.directory(new File(currentDirectory));
-            processBuilder.environment().putAll(env); // Adiciona o PATH atualizado
+            processBuilder.environment().putAll(env);
             Process process = processBuilder.start();
 
             InputStream stdInput = process.getInputStream();
             InputStream stdError = process.getErrorStream();
-
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(stdInput));
             String line;
             while ((line = reader.readLine()) != null) {
                 System.out.println(line);
             }
-
 
             BufferedReader readerErr = new BufferedReader(new InputStreamReader(stdError));
             while ((line = readerErr.readLine()) != null) {
@@ -153,20 +159,32 @@ public class CodeService {
 
             int exitCode = process.waitFor();
             if (exitCode == 0) {
-                System.out.println("Comando executado com sucesso: " + command);
-
+                System.out.println("Command executed successfully: " + command);
             } else {
-                System.err.println("O comando terminou com erros. Código de saída: " + exitCode);
+                System.err.println("Command exited with errors. Exit code: " + exitCode);
             }
-            //currentDirectory = "/projects"; // Prod
-            //currentDirectory = "C:\\Projects"; // Local
         } catch (IOException e) {
-            System.err.println("Erro ao executar o comando. Erro de IO: " + e.getMessage());
+            System.err.println("Error executing command. IO Error: " + e.getMessage());
         } catch (InterruptedException e) {
-            System.err.println("Processo interrompido: " + e.getMessage());
-            // Preserve o status de interrupção
+            System.err.println("Process interrupted: " + e.getMessage());
             Thread.currentThread().interrupt();
         }
+    }
+
+    @NotNull
+    private static ProcessBuilder getProcessBuilder(String command, String osName, String commandPrefix) {
+        String[] processCommand;
+        if (osName.contains("win")) {
+            // Windows command syntax
+            String windowsCommand = command.replace("/", "\\"); // Ensure Windows path separators
+            processCommand = new String[]{commandPrefix, "/c", windowsCommand};
+        } else {
+            // Unix/Linux command syntax
+            processCommand = new String[]{commandPrefix, "-c", command};
+        }
+
+        ProcessBuilder processBuilder = new ProcessBuilder(processCommand);
+        return processBuilder;
     }
 
 
@@ -446,8 +464,12 @@ public class CodeService {
                                     executeCommand(command);
                                 }
                             }
-                            Optional<Project> project = projectRepository.findByName(projectName);
-                            String language = project.get().getProgrammingLanguague();
+                            Optional<Project> projectOptional = projectRepository.findByName(projectName);
+                            if (!projectOptional.isPresent()) {
+                                throw new RuntimeException("Project not found: " + projectName);
+                            }
+                            Project project = projectOptional.get();
+                            String language = project.getProgrammingLanguague();
                             switch (language) {
                                 case "java":
                                     regexJavaCode(response, projectName);

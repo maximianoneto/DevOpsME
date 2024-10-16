@@ -13,55 +13,61 @@ import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/project")
-@Tag(name = "Project Controller", description = "Controller for Projects")
+@Tag(name = "Project Controller", description = "Controller for managing projects")
 public class ProjectController {
 
     @Autowired
-    CodeService codeService;
+    private CodeService codeService;
 
     @Autowired
     private ProjectService projectService;
 
-    private static final Logger logger = LoggerFactory.getLogger(CodeController.class);
+    private static final Logger logger = LoggerFactory.getLogger(ProjectController.class);
     private final Dotenv dotenv = Dotenv.configure().load();
 
-
-
-    @Operation(summary = "Cria um projeto atrelado um threadId",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Projeto Criado com Sucesso.",
-                            content = @Content(mediaType = "application/json")),
-                    @ApiResponse(responseCode = "400", description = "Dados inválidos fornecidos",
-                            content = @Content),
-                    @ApiResponse(responseCode = "404", description = "threadId não encontrado",
-                            content = @Content)
-            })
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(examples = {
-            @ExampleObject(
-                    name = "Exemplo de requisição",
-                    summary = "Exemplo de corpo da requisição",
-                    value = "{\"threadId\": \"thread_1vGxXnYfJwfO7HioNTN1fwMD\"}"
-            )
-    }))
-    @CrossOrigin(origins = "*")
+    @CrossOrigin("*")
     @PostMapping("/createProject")
+    @Operation(
+            summary = "Cria um novo projeto",
+            description = "Endpoint para criar um novo projeto.",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Dados para criação do projeto",
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Exemplo de criação de projeto",
+                                            value = "{\n" +
+                                                    "  \"threadId\": \"thread_wudttBmK8bXWy5tNzP4cNIFh\",\n" +
+                                                    "  \"projectName\": \"Hostel\",\n" +
+                                                    "  \"type\": \"web\",\n" +
+                                                    "  \"additionalInformation\": \"Some info\",\n" +
+                                                    "  \"programmingLanguage\": \"java\"\n" +
+                                                    "}"
+                                    )
+                            }
+                    )
+            ),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Projeto criado com sucesso"),
+                    @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+                    @ApiResponse(responseCode = "500", description = "Erro interno do servidor")
+            }
+    )
     public ResponseEntity<String> createProject(@RequestBody Map<String, String> request) {
         try {
             String threadId = request.get("threadId");
@@ -70,63 +76,61 @@ public class ProjectController {
             String additionalInformation = request.get("additionalInformation");
             String programmingLanguage = request.get("programmingLanguage");
             if (threadId == null || threadId.isEmpty()) {
-                return ResponseEntity.badRequest().body("O 'projectName' é obrigatório.");
+                return ResponseEntity.badRequest().body("The 'threadId' is required.");
             }
-            String response = String.valueOf(projectService.createProject(projectName,type,threadId,additionalInformation, programmingLanguage));
+            String response = String.valueOf(projectService.createProject(projectName, type, threadId, additionalInformation, programmingLanguage));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            logger.error("Erro ao criar projeto.", e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error("Error creating project.", e);
+            return ResponseEntity.internalServerError().body("Internal server error.");
         }
     }
 
+    @Operation(
+            summary = "Downloads the specified project as a ZIP file.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Project downloaded successfully.", content = @Content),
+                    @ApiResponse(responseCode = "500", description = "Error downloading the project.", content = @Content)
+            }
+    )
     @CrossOrigin(origins = "*")
     @GetMapping("/downloadProject")
     public ResponseEntity<StreamingResponseBody> downloadProject(@RequestParam String projectName, HttpServletResponse response) {
         try {
-            logger.info("Iniciando download do projeto: {}", projectName);
-            String projectPathString = projectService.getProjectPath(projectName);
+            logger.info("Starting download for project: {}", projectName);
+            Path projectPath = projectService.getProjectPath(projectName);
 
-            logger.info("Caminho do projeto obtido: {}", projectPathString);
-            Path projectPath = Paths.get(projectPathString);
+            if (!Files.exists(projectPath)) {
+                logger.error("Project directory does not exist: {}", projectPath);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            }
 
-            logger.info("Path do projeto: {}", projectPath);
-            Path zipPath = Paths.get(projectPathString + ".zip");
-
-            logger.info("Caminho do arquivo ZIP: {}", zipPath);
+            Path zipPath = projectPath.resolveSibling(projectName + ".zip");
 
             projectService.zipFolder(projectPath, zipPath);
-            logger.info("ZIP criado com sucesso. Preparando para download: {}", zipPath.getFileName().toString());
-
+            logger.info("ZIP created successfully: {}", zipPath.getFileName().toString());
 
             response.setContentType("application/zip");
             response.setHeader("Content-Disposition", "attachment; filename=\"" + zipPath.getFileName().toString() + "\"");
-            System.out.println("caminho do arquivo com o . zip"+zipPath.getFileName().toString());
 
             StreamingResponseBody stream = outputStream -> {
-                try (InputStream is = new FileInputStream(zipPath.toFile())) {
+                try (InputStream is = Files.newInputStream(zipPath)) {
                     IOUtils.copy(is, outputStream);
-                } catch (FileNotFoundException fnfe) {
-                    logger.error("Arquivo não encontrado: " + zipPath, fnfe);
-                    throw new RuntimeException("Arquivo não encontrado: " + fnfe.getMessage());
-                } catch (IOException ioe) {
-                    logger.error("Erro de IO ao streamar o arquivo: " + zipPath, ioe);
-                    throw new RuntimeException("Erro de IO ao streamar o arquivo: " + ioe.getMessage());
                 } catch (Exception e) {
-                    logger.error("Erro geral ao streamar o arquivo: " + zipPath, e);
-                    throw new RuntimeException("Erro ao streamar o arquivo: " + e.getMessage());
+                    logger.error("Error streaming the ZIP file: " + zipPath, e);
+                    throw new RuntimeException("Error streaming the file: " + e.getMessage());
                 }
             };
 
             return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType("application/zip"))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipPath.getFileName().toString() + "\"")
                     .body(stream);
 
-
         } catch (Exception ex) {
-            logger.error("Erro ao baixar o projeto", ex);
+            logger.error("Error downloading the project", ex);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+
 }
