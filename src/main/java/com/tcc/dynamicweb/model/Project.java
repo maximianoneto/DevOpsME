@@ -6,6 +6,7 @@ import lombok.Data;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Data
@@ -38,16 +39,15 @@ public class Project {
     private Set<Assistant> assistants = new HashSet<>();
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Project)) return false;
-        Project project = (Project) o;
-        return projectId != null && projectId.equals(project.getProjectId());
+    public int hashCode() {
+        return Objects.hash(projectId);
     }
 
     @Override
-    public int hashCode() {
-        return getClass().hashCode();
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Project project = (Project) obj;
+        return Objects.equals(projectId, project.projectId);
     }
-
 }

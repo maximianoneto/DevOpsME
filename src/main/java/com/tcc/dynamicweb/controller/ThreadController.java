@@ -1,23 +1,29 @@
 package com.tcc.dynamicweb.controller;
 
+
+import com.tcc.dynamicweb.model.dto.AddMessageRequestDTO;
+import com.tcc.dynamicweb.model.dto.CreateThreadDTO;
+import com.tcc.dynamicweb.model.dto.RequestThreadDTO;
 import com.tcc.dynamicweb.service.ThreadService;
 import io.github.cdimascio.dotenv.Dotenv;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.*;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 @RestController
-@RequestMapping("/thread")
-@Tag(name = "Thread Controller", description = "Controller for creating and retrieving thread messages")
-@CrossOrigin(origins = "*")
+@RequestMapping("/thread") // Use a specific base path
+@Tag(name = "Thread Controller", description = "Controller for Creation and Retrieve Thread Messages")
 public class ThreadController {
 
     private static final Logger logger = LoggerFactory.getLogger(ThreadController.class);
@@ -26,107 +32,140 @@ public class ThreadController {
     @Autowired
     private ThreadService threadService;
 
-    @CrossOrigin("*")
-    @PostMapping("/thread/createThread")
     @Operation(
-            summary = "Cria uma nova thread",
-            description = "Endpoint para criar uma nova thread.",
+            summary = "Creates a Thread with an Initial Message for the AI Assistants",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Thread created successfully",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "Invalid request",
+                            content = @Content
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Server error",
+                            content = @Content
+                    )
+            },
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Mensagem inicial para a thread",
-                    required = true,
+                    description = "Details for creating a new thread",
                     content = @Content(
                             mediaType = "application/json",
+                            schema = @Schema(implementation = CreateThreadDTO.class),
                             examples = @ExampleObject(
-                                    name = "Exemplo de criação de thread",
-                                    value = "{\n" +
-                                            "  \"initialMessage\": \"nome:Hostel, Linguagem de programação: Java 17, Framework: Spring Boot, Gerenciador de Dependencia: gradle, Dependencias adicionais: lombok\"\n" +
-                                            "}"
+                                    name = "Create Thread Example",
+                                    summary = "Example for creating a thread",
+                                    value = "{\n  \"projectName\": \"MyProject\",\n  \"programmingLanguage\": \"Java\",\n  \"versionOfProgrammingLanguage\": \"17\",\n  \"framework\": \"Spring Boot 3.3.0\",\n  \"dependencyManager\": \"Maven\",\n  \"additionalDependencies\": \"Lombok, MapStruct\"\n}"
                             )
                     )
-            ),
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Thread criada com sucesso"),
-                    @ApiResponse(responseCode = "400", description = "Dados inválidos"),
-                    @ApiResponse(responseCode = "500", description = "Erro interno do servidor")
-            }
+            )
     )
-    public ResponseEntity<String> createThread(@RequestBody Map<String, String> payload) {
+    @CrossOrigin(origins = "*")
+    @PostMapping("/createThread")
+    public ResponseEntity<?> createThread(@RequestBody CreateThreadDTO createThreadDTO) {
         try {
-            String initialMessage = payload.get("initialMessage");
-            if (initialMessage == null) {
-                return ResponseEntity.badRequest().body("Initial message is required.");
+            if (createThreadDTO.getProgrammingLanguage() == null || createThreadDTO.getProgrammingLanguage().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Mensagem inicial é obrigatória.");
             }
-            String response = threadService.createThread(initialMessage);
-            return ResponseEntity.ok(response);
+            if (createThreadDTO.getProjectName() == null || createThreadDTO.getProjectName().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Nome do projeto é obrigatório.");
+            }
+            String threadId = threadService.createThread(createThreadDTO);
+            return ResponseEntity.ok(Map.of("threadId", threadId));
         } catch (Exception e) {
-            logger.error("Error creating thread", e);
-            return ResponseEntity.badRequest().body("Error creating thread: " + e.getMessage());
+            logger.error("Falha ao criar thread.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Falha ao criar thread.");
         }
     }
 
-    @Operation(
-            summary = "Retrieves messages from a specific thread.",
+    @Operation(summary = "Retrieves messages from a Specific Thread",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Messages retrieved successfully.", content = @Content),
-                    @ApiResponse(responseCode = "204", description = "No content found for the thread.", content = @Content),
-                    @ApiResponse(responseCode = "400", description = "Invalid thread ID provided.", content = @Content)
-            }
-    )
-    @GetMapping(value = "/getThreadMessages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<String> getThreadMessages(@RequestParam String threadId) {
+                    @ApiResponse(responseCode = "200", description = "Messages successfully retrieved",
+                            content = @Content),
+                    @ApiResponse(responseCode = "500", description = "Error retrieving response",
+                            content = @Content)
+            })
+    @CrossOrigin(origins = "*")
+    @GetMapping("/thread/{threadId}")
+    public ResponseEntity<?> getThreadMessages(@PathVariable String threadId) {
         try {
-            if (threadId == null || threadId.trim().isEmpty()) {
-                return ResponseEntity.noContent().build();
-            }
-            return threadService.getThreadMessages(threadId);
+            String messages = threadService.getThreadMessages(threadId).getBody();
+            return ResponseEntity.ok(Map.of(
+                    "threadId", threadId,
+                    "messages", messages != null ? messages.split("\n") : new String[]{}
+            ));
         } catch (Exception ex) {
-            logger.error("Error retrieving thread messages", ex);
-            return ResponseEntity.badRequest().body("Error retrieving thread messages: " + ex.getMessage());
+            logger.error("Falha ao carregar o thread.", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Falha ao carregar o thread.");
         }
     }
 
-    @CrossOrigin("*")
-    @PostMapping("/thread/addMessageToThread")
     @Operation(
-            summary = "Adiciona uma mensagem à thread",
-            description = "Endpoint para adicionar uma mensagem a uma thread existente.",
+            summary = "Adds a new message to a specific thread",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Message added successfully",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(type = "string"),
+                                    examples = @ExampleObject(
+                                            name = "Success Response",
+                                            summary = "Example success response",
+                                            value = "\"Mensagem adicionada com sucesso.\""
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "Invalid request",
+                            content = @Content
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Server error",
+                            content = @Content
+                    )
+            },
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Dados para adicionar mensagem à thread",
-                    required = true,
+                    description = "Details for adding a message to a thread",
                     content = @Content(
                             mediaType = "application/json",
+                            schema = @Schema(implementation = AddMessageRequestDTO.class),
                             examples = @ExampleObject(
-                                    name = "Exemplo de adição de mensagem à thread",
-                                    value = "{\n" +
-                                            "  \"threadId\": \"thread_wudttBmK8bXWy5tNzP4cNIFh\",\n" +
-                                            "  \"message\": \"user story - Eu como administrador, eu quero incluir novas mensagens de boas vindas para disponibilizar o maior número possivel de linguagens. Critério de Aceitação: O sistema deve permitir que apenas usuário com a role admin possam incluir novas mensagens de boas vindas. Relatório técninco: o sistema deve possuir 3 endpoint, sendo um deles para Registro de usuário, o outro endpoint para autentição de usuário e o terceiro endpoint deve incluir novas mensagens de boas vindas se o usuário for da role admin\"\n" +
-                                            "}"
+                                    name = "Add Message Example",
+                                    summary = "Example request for adding a message",
+                                    value = "{\n  \"threadId\": \"thread123\",\n  \"message\": \"As a booking manager, I want to make a reservation for a customer in a specific period of time so that I do not run the risk of running out of rooms or the desired reservation period\",\n  \"featureDependsBackend\": false,\n  \"projectName\": \"BackendProject\"\n}"
                             )
                     )
-            ),
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Mensagem adicionada com sucesso"),
-                    @ApiResponse(responseCode = "400", description = "Dados inválidos"),
-                    @ApiResponse(responseCode = "500", description = "Erro interno do servidor")
-            }
+            )
     )
-    public ResponseEntity<String> addMessageToThread(@RequestBody Map<String, String> request) {
+    @CrossOrigin(origins = "*")
+    @PostMapping("/addMessage")
+    public ResponseEntity<?> addMessageToThread(@RequestBody AddMessageRequestDTO requestDTO) {
         try {
-            String threadId = request.get("threadId");
-            String message = request.get("message");
-            boolean featureDependsBackend = Boolean.parseBoolean(request.get("type"));
-            String projectNameBackend = request.get("projectNameBackend");
-            if (threadId == null || threadId.isEmpty()) {
-                return ResponseEntity.badRequest().body("The 'threadId' is required.");
+            if (requestDTO.getThreadId() == null || requestDTO.getThreadId().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("O 'threadId' é obrigatório.");
             }
-            if (message == null || message.isEmpty()) {
-                return ResponseEntity.badRequest().body("The 'message' is required.");
+            if (requestDTO.getMessage() == null || requestDTO.getMessage().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("A 'mensagem' é obrigatória.");
             }
-            String response = threadService.addMessageToThread(threadId, message, featureDependsBackend, projectNameBackend);
-            return ResponseEntity.ok(response);
+
+            threadService.addMessageToThread(
+                    requestDTO.getThreadId(),
+                    requestDTO.getMessage(),
+                    requestDTO.isFeatureDependsBackend(),
+                    requestDTO.getProjectName()
+            );
+            return ResponseEntity.ok("Mensagem adicionada com sucesso.");
         } catch (Exception e) {
-            logger.error("Error adding message to thread", e);
-            return ResponseEntity.internalServerError().body("Internal server error.");
+            logger.error("Falha ao adicionar mensagem.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Falha ao adicionar mensagem.");
         }
     }
+
 }

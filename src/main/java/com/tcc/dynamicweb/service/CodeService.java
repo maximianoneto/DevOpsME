@@ -86,71 +86,65 @@ public class CodeService {
         }
     }
 
-    String currentDirectory = "/projects";
-    //String currentDirectory = "C:\\Projects"; // Local
+    //String currentDirectory = "/projects"; Prod
+    String currentDirectory = "C:\\Projects"; // Local
 
     private void executeCommand(String command) {
+
         try {
-            String osName = System.getProperty("os.name").toLowerCase();
-            String commandPrefix;
-            String currentDirectory;
+
             Map<String, String> env = new HashMap<>(System.getenv());
+            String nodePath = "C:\\Program Files\\nodejs";
+            env.put("PATH", nodePath + ";" + env.get("PATH"));
 
-            if (osName.contains("win")) {
-                commandPrefix = "cmd";
-                currentDirectory = "C:\\Projects";
-                String nodePath = "C:\\Program Files\\nodejs";
-                env.put("PATH", nodePath + ";" + env.get("PATH"));
+            String springPath = "D:\\spring-3.2.2\\bin";
+            env.put("PATH", springPath + ";" + env.get("PATH"));
 
-                String springPath = "D:\\spring-3.2.2\\bin";
-                env.put("PATH", springPath + ";" + env.get("PATH"));
-            } else {
-                // Unix/Linux-specific settings
-                commandPrefix = "/bin/sh";
-                currentDirectory = "/Projects"; // Adjust as needed for Linux
-                // Update environment variables for Unix/Linux
-                String nodePath = "/usr/bin"; // Adjust to where Node.js is installed
-                env.put("PATH", nodePath + ":" + env.get("PATH"));
-                // Assuming Spring Boot CLI is installed and added to PATH in Dockerfile
-            }
-
-            // Handle 'cd' command
             if (command.startsWith("cd ")) {
                 String commandPart = command.substring(3).trim();
                 String[] parts = commandPart.split("&&");
                 String newDirectory = parts[0].trim();
 
                 currentDirectory = new File(currentDirectory, newDirectory).getCanonicalPath();
-                System.out.println("Directory changed to: " + currentDirectory);
+                System.out.println("Diretório mudado para: " + currentDirectory);
                 return;
             }
 
-            // Handle commands with '--name='
+            // Verifica se o comando contém --name=nome-arquivo nome-arquivo se não contém, adiciona o nome-arquivo um espaço após o fim do comando
+            // regex para retirar o nome do projeto da string e vincular ao comando de execução
             if (command.contains("--name=")) {
                 String projectName = command.substring(command.lastIndexOf("--name=") + 7);
+                //verifica se o nome do projeto esta contido duas vezes na string comand
                 if (!projectName.contains(" ")) {
                     command = command + " " + projectName;
                 }
+
             }
 
-            // Skip certain commands
-            if (command.equals("npm start") || command.equals("npm test")) {
+            if (command.contains("npm start") || command.contentEquals("npm start") || command.contentEquals("npm test") || command.contentEquals("npm test")) {
                 return;
             }
 
-            ProcessBuilder processBuilder = getProcessBuilder(command, osName, commandPrefix);
+
+            String cmdPrefix = "cmd /c "; // Deixar essa linha descomentada para rodar localmente
+
+            String windowsCommand = command.replace("/", "\\"); // Garantir o uso de separadores de caminho do Windows
+
+            ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", windowsCommand);
             processBuilder.directory(new File(currentDirectory));
-            processBuilder.environment().putAll(env);
+            processBuilder.environment().putAll(env); // Adiciona o PATH atualizado
             Process process = processBuilder.start();
 
             InputStream stdInput = process.getInputStream();
             InputStream stdError = process.getErrorStream();
+
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(stdInput));
             String line;
             while ((line = reader.readLine()) != null) {
                 System.out.println(line);
             }
+
 
             BufferedReader readerErr = new BufferedReader(new InputStreamReader(stdError));
             while ((line = readerErr.readLine()) != null) {
@@ -159,32 +153,20 @@ public class CodeService {
 
             int exitCode = process.waitFor();
             if (exitCode == 0) {
-                System.out.println("Command executed successfully: " + command);
+                System.out.println("Comando executado com sucesso: " + command);
+
             } else {
-                System.err.println("Command exited with errors. Exit code: " + exitCode);
+                System.err.println("O comando terminou com erros. Código de saída: " + exitCode);
             }
+            //currentDirectory = "/projects"; // Prod
+            //currentDirectory = "C:\\Projects"; // Local
         } catch (IOException e) {
-            System.err.println("Error executing command. IO Error: " + e.getMessage());
+            System.err.println("Erro ao executar o comando. Erro de IO: " + e.getMessage());
         } catch (InterruptedException e) {
-            System.err.println("Process interrupted: " + e.getMessage());
+            System.err.println("Processo interrompido: " + e.getMessage());
+            // Preserve o status de interrupção
             Thread.currentThread().interrupt();
         }
-    }
-
-    @NotNull
-    private static ProcessBuilder getProcessBuilder(String command, String osName, String commandPrefix) {
-        String[] processCommand;
-        if (osName.contains("win")) {
-            // Windows command syntax
-            String windowsCommand = command.replace("/", "\\"); // Ensure Windows path separators
-            processCommand = new String[]{commandPrefix, "/c", windowsCommand};
-        } else {
-            // Unix/Linux command syntax
-            processCommand = new String[]{commandPrefix, "-c", command};
-        }
-
-        ProcessBuilder processBuilder = new ProcessBuilder(processCommand);
-        return processBuilder;
     }
 
 
@@ -292,31 +274,31 @@ public class CodeService {
 
                         regexTestNode(threadService.getThreadMessages(threadId), projectName);
                     }else {
-                        String threadId = threadService.createThread("nome:" + projectName + "," + "\n" + "testNode" + value);
+                      //  String threadId = threadService.createThread("nome:" + projectName + "," + "\n" + "testNode" + value);
 
-                        regexTestNode(threadService.getThreadMessages(threadId), projectName);
+                     //   regexTestNode(threadService.getThreadMessages(threadId), projectName);
 
                         // Supondo que seu projectRepository tenha um método chamado findByName que retorna um Optional<Project>
-                        Optional<Project> existingProject = projectRepository.findByName(projectName);
-
-                        Project project = existingProject.orElseGet(() -> {
-                            Project newProject = new Project();
-                            newProject.setName(projectName);
-                            newProject.setPathToProject("C:\\Projects\\" + projectName);
-                            return newProject;
-                        });
+//                        Optional<Project> existingProject = projectRepository.findByName(projectName);
+//
+//                        Project project = existingProject.orElseGet(() -> {
+//                            Project newProject = new Project();
+//                            newProject.setName(projectName);
+//                            newProject.setPathToProject("C:\\Projects\\" + projectName);
+//                            return newProject;
+//                        });
 
                         // Supondo que o assistantRepository tenha um método findAssistantByThreadId que retorne Optional<Assistant>
-                        Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
+                   //     Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
 
-                        Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
-                        assistant.setThreadId(threadId);
-                        assistant.setProject(project);
+                  //      Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
+                  //      assistant.setThreadId(threadId);
+                //        assistant.setProject(project);
                         // Ajuste o tipo conforme sua implementação
-                        assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
-                        project.getAssistants().add(assistant);
+                   //     assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
+                  //     project.getAssistants().add(assistant);
 
-                        projectRepository.save(project);
+                     //   projectRepository.save(project);
                     }
                 }
             }
@@ -464,12 +446,8 @@ public class CodeService {
                                     executeCommand(command);
                                 }
                             }
-                            Optional<Project> projectOptional = projectRepository.findByName(projectName);
-                            if (!projectOptional.isPresent()) {
-                                throw new RuntimeException("Project not found: " + projectName);
-                            }
-                            Project project = projectOptional.get();
-                            String language = project.getProgrammingLanguague();
+                            Optional<Project> project = projectRepository.findByNameAndThreadId(projectName, threadId);
+                            String language = project.get().getProgrammingLanguague();
                             switch (language) {
                                 case "java":
                                     regexJavaCode(response, projectName);
@@ -645,29 +623,29 @@ public class CodeService {
                         regexTestNode(threadService.getThreadMessages(threadId), projectName);
                     }else {
 
-                        String threadId = threadService.createThread("nome:" + projectName + "," + "testReact" + "\n" + value);
+                    //    String threadId = threadService.createThread("nome:" + projectName + "," + "testReact" + "\n" + value);
 
-                        regexTestNode(threadService.getThreadMessages(threadId), projectName);
+                   //     regexTestNode(threadService.getThreadMessages(threadId), projectName);
 
-                        Optional<Project> existingProject = projectRepository.findByName(projectName);
+                   //     Optional<Project> existingProject = projectRepository.findByName(projectName);
 
-                        Project project = existingProject.orElseGet(() -> {
-                            Project newProject = new Project();
-                            newProject.setName(projectName);
-                            newProject.setPathToProject("C:\\Projects\\" + projectName);
-                            return newProject;
-                        });
+//                        Project project = existingProject.orElseGet(() -> {
+//                            Project newProject = new Project();
+//                            newProject.setName(projectName);
+//                            newProject.setPathToProject("C:\\Projects\\" + projectName);
+//                            return newProject;
+//                        });
 
-                        Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
+                    //   Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
 
-                        Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
-                        assistant.setThreadId(threadId);
-                        assistant.setProject(project);
+                    //    Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
+                    //    assistant.setThreadId(threadId);
+                    //    assistant.setProject(project);
 
-                        assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
-                        project.getAssistants().add(assistant);
+                    //    assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
+                   //     project.getAssistants().add(assistant);
 
-                        projectRepository.save(project);
+                 //       projectRepository.save(project);
                     }
                 }
             }

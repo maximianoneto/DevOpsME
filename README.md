@@ -7,6 +7,8 @@
     <h2>Tabela de Conteúdos</h2>
     <ul>
         <li><a href="#visão-geral-da-arquitetura">Visão Geral da Arquitetura</a></li>
+        <li><a href="#approach">Fluxo de Atividades da Abordagem</a></li>
+        <li><a href="#configurando-o-assistant">Configurando o Assistant</a></li>
         <li><a href="#como-executar-o-DevOpsME">Como Executar o DevOpsME</a>
             <ul>
                 <li><a href="#pré-requisitos">Pré-Requisitos</a></li>
@@ -38,6 +40,14 @@
     </ul>
     <h2 id="visão-geral-da-arquitetura">Visão Geral da Arquitetura</h2>
     <p>O DevOpsME é construído usando Java 17 e o framework Spring Boot. Ele utiliza o Gradle como gerenciador de dependências e inclui várias dependências chave, como Lombok e a API da OpenAI.</p>
+    <img src="src/main/resources/images/arquitetura.png" alt="Visão Geral da Arquitetura" width="600" />
+    <h2 id="approach">Fluxo de Atividades da Abordagem</h2>
+    <p>Our approach consists of a workflow of activities, tasks, and subtasks structured into two levels. The first level consists of activities whereas the second level details each first level activity by the use of tasks and subtasks. Within our approach, activities, tasks, and subtasks are performed collaboratively by Human DevOps engineers and AI assistants. Figure 1 presents the first level of our approach. 
+	As can be seen in the figure, the Human DevOps Engineer role performs the first activity ("1. Develop Software") in collaboration with DevOps AI assistants (AI Developer assistant and AI tester assistant in this activity), utilizing as input some Development Artifacts</p>
+    <img src="src/main/resources/images/first-level.png" alt="Primeiro nivel de atividades" width="600" />
+    <img src="src/main/resources/images/second-vel.png" alt="Segundo nivel de atividades" width="600" />
+    <img src="src/main/resources/images/activity2.png" alt="Segundo nivel de atividades" width="600" />
+    <p>	The second activity ("2. Deliver Software"), focuses on semi-automating the software delivery process by automating artifact creation and releasing them to a repository while leaving execution on the customer’s machine as a manual step. In this activity, the Human DevOps engineer provides Delivery Artifacts to an AI CI/CD Assistant in order to deliver the software that was developed in the first activity.</p>
     <h3>Tecnologias</h3>
     <div style="display: flex; gap: 7px; flex-wrap: wrap;">
         <img src="https://img.shields.io/badge/Java-17-007396?style=for-the-badge&amp;logo=openjdk&amp;logoColor=white" alt="Java">
@@ -59,7 +69,72 @@
         <li><strong>Chave de API da OpenAI</strong></li>
         <li><strong>Node.js e NPM (para certos recursos)</strong></li>
     </ul>
-    <h3 id="executando-a-aplicação-usando-docker">Executando a Aplicação Usando Docker</h3>
+<h2 id="configurando-o-assistant">Configurando o Assistant pela GUI da OpenAI</h2>
+<ol>
+  <li>Acesse o site da OpenAI: <a href="https://platform.openai.com/playground/" target="_blank">OpenAI Playground</a></li>
+  <li>Na aba lateral, clique em <strong>Assistants</strong>.</li>
+  <li>Clique no botão <strong>Create New Assistant</strong>.</li>
+  <li>
+    Defina o nome do seu assistant. Abaixo do nome será gerado um <strong>ID do assistant</strong>, que será usado para configuração no arquivo <code>.env</code>.
+    <br><strong>Exemplo:</strong> <code>asst_HJrsyC7ZLKCJuwT15ygF8JAb</code>
+  </li>
+  <li>
+    No campo <strong>System Instructions</strong>, configure as instruções de comportamento do assistant.
+    <br><strong>Exemplo de System Instructions para um assistant de Java:</strong>
+    <ul>
+      <li><strong>Role:</strong></li>
+      <blockquote>
+        Você vai atuar como um especialista em criação de projetos Java 17 ou Java 21 com as seguintes tecnologias abaixo. Prioritariamente, você não devolverá texto explicando o procedimento, mas atuará conforme as etapas abaixo:
+        <ul>
+          <li>Na sua primeira iteração, você devolverá comandos para criação de projeto no terminal, a árvore de diretórios inicial e, posteriormente, atuará recebendo histórias de usuário e critérios de aceitação para produzir código com base neles.</li>
+          <li>Quando produzir código, atente-se ao package da classe para ser igual ao package do projeto gerado. Verifique a árvore de diretórios.</li>
+          <li>
+            Caso utilize dependências não inclusas no projeto base, informe a dependência, sua versão e devolva o arquivo atualizado (<code>build.gradle</code> ou <code>pom.xml</code>).
+            <br>Utilize o padrão de regex para as dependências:
+            <ul>
+              <li><code>gradle</code>: <code>```gradle\n(.+?)\n```</code></li>
+              <li><code>maven</code>: <code>```maven\n(.+?)\n```</code></li>
+            </ul>
+          </li>
+          <li>
+            Para comandos no terminal, utilize o padrão:
+            <ul>
+              <li><code>cmd</code>: <code>```cmd\n(.+?)\n```</code></li>
+            </ul>
+          </li>
+          <li>
+            Exemplo de criação de projeto Spring Boot usando Spring CLI:
+            <br><code>spring init --dependencies=web,lombok --build=gradle --java-version=17 --boot-version=3.2.0 --type=gradle-project --name=centralparkhotel centralparkhotel</code>
+          </li>
+        </ul>
+      </blockquote>
+    </ul>
+  </li>
+  <li>Salve as configurações e copie o <strong>ID do assistant</strong> gerado.</li>
+</ol>
+
+<h2>Testando a Configuração</h2>
+<ol>
+  <li>Utilize as instruções comportamentais configuradas no <strong>System Instructions</strong> para testar a funcionalidade do assistant na interface da OpenAI.</li>
+  <li>No <strong>Playground</strong>, selecione o modelo para o assistant.
+    <br><strong>Exemplo:</strong> <code>gpt-4-turbo</code>.
+  </li>
+  <li>Salve o assistant.</li>
+</ol>
+
+<h2>Configuração do <code>.env</code></h2>
+<p>Crie um arquivo <code>.env</code> na raiz do projeto e adicione os seguintes valores:</p>
+<pre><code>OPENAI_API_KEY=sua-chave-de-api
+TEST_REACT_ID=asst_g9KCev8WzHY1zJT9cXR2IS0i
+TEST_NODE_ID=asst_0hvUbB6SiNxBQBZEzWSAWJHb
+PYTHON_ID=asst_ffpgT4f0i3K7Wt35SqOp6uww
+REACT_ID=asst_OxHBt8GMEc3x4N8QPqi0wrma
+JAVA_ID=asst_P1Mlu6C8nZBevGH0yvX5aK35  # Cole o ID gerado para o assistant configurado para Java
+NEXT_ID=asst_WQoe8Myj09wtB3vYWig0FXJb # Caso não use outro assistant, preencha com uma string vazia
+NODE_ID=asst_8VMJsRU9b57pgrTVxGMkYb5r
+</code></pre>
+<p>Agora o assistant está configurado e pronto para uso.</p>
+<h3 id="executando-a-aplicação-usando-docker">Executando a Aplicação Usando Docker</h3>
     <h4>1. Clonar o Projeto</h4>
     <pre><code>git clone https://github.com/maximianoneto/DevOpsME.git
     </code></pre>
@@ -102,8 +177,13 @@
     </code></pre>
     <p><strong>Corpo da Requisição:</strong></p>
     <pre><code>{
-      "initialMessage": "nome:Hostel, Linguagem de programação: Java 17, Framework: Spring Boot, Gerenciador de Dependência: gradle, Dependências adicionais: lombok"
-    }
+    "projectName": "PlazaHotel",
+    "programmingLanguage": "java",
+    "versionOfProgrammingLanguage": "17",
+    "framework": "Spring Boot 3.3.0",
+    "dependencyManager": "gradle",
+    "additionalDependencies": "lombok"
+}
     </code></pre>
     <p><strong>Descrição:</strong></p>
     <p>Este endpoint inicializa uma nova thread para o seu projeto, que será usada para rastrear o contexto da conversa.</p>
@@ -114,12 +194,12 @@
     </code></pre>
     <p><strong>Corpo da Requisição:</strong></p>
     <pre><code>{
-      "threadId": "thread_wudttBmK8bXWy5tNzP4cNIFh",
-      "projectName": "Hostel",
-      "type": "web",
-      "additionalInformation": "Alguma informação",
-      "programmingLanguage": "java"
-    }
+    "threadId": "thread_s6H8sr4bkz1QTffb0vmS2Yxr",
+    "projectName": "PlazaHotel",
+    "type": "backend",
+    "additionalInformation": "",
+    "programmingLanguage": "java"
+}
     </code></pre>
     <p><strong>Descrição:</strong></p>
     <p>Cria um novo projeto associado à thread criada anteriormente.</p>
@@ -130,9 +210,11 @@
     </code></pre>
     <p><strong>Corpo da Requisição:</strong></p>
     <pre><code>{
-      "threadId": "thread_wudttBmK8bXWy5tNzP4cNIFh",
-      "message": "user story - Eu como administrador, eu quero incluir novas mensagens de boas-vindas para disponibilizar o maior número possível de linguagens. Critério de Aceitação: O sistema deve permitir que apenas usuários com a role admin possam incluir novas mensagens de boas-vindas. Relatório técnico: o sistema deve possuir 3 endpoints, sendo um deles para registro de usuário, o outro endpoint para autenticação de usuário e o terceiro endpoint deve incluir novas mensagens de boas-vindas se o usuário for da role admin"
-    }
+    "threadId": "thread_c6ed09O5VfaG1MpQ7nY6FGX9",
+    "message": "As a booking manager, I want to make a reservation for a customer in a specific period of time so that I do not run the risk of running out of rooms or the desired reservation period",
+    "featureDependsBackend": false,
+    "projectName": "PlazaHotel"
+}
     </code></pre>
     <p><strong>Descrição:</strong></p>
     <p>Adiciona uma nova mensagem à thread, fornecendo instruções adicionais ou histórias de usuário para a geração de código.</p>
@@ -143,9 +225,9 @@
     </code></pre>
     <p><strong>Corpo da Requisição:</strong></p>
     <pre><code>{
-      "threadId": "thread_wudttBmK8bXWy5tNzP4cNIFh",
-      "projectName": "Hostel"
-    }
+    "threadId":"thread_s6H8sr4bkz1QTffb0vmS2Yxr",
+    "projectName":"PlazaHotel"
+}
     </code></pre>
     <p><strong>Descrição:</strong></p>
     <p>Gera código com base nas mensagens da thread e adiciona ao projeto.</p>
@@ -166,7 +248,12 @@
         <li><strong>Descrição:</strong> Cria uma nova thread com uma mensagem inicial.</li>
         <li><strong>Corpo da Requisição Exemplo:</strong>
             <pre><code>{
-"initialMessage": "nome:Hostel, Linguagem de programação: Java 17, Framework: Spring Boot, Gerenciador de Dependência: gradle, Dependências adicionais: lombok"
+    "projectName": "PlazaHotel",
+    "programmingLanguage": "java",
+    "versionOfProgrammingLanguage": "17",
+    "framework": "Spring Boot 3.3.0",
+    "dependencyManager": "gradle",
+    "additionalDependencies": "lombok"
 }
 </code></pre>
 </li>
@@ -177,8 +264,10 @@
         <li><strong>Descrição:</strong> Adiciona uma mensagem a uma thread existente.</li>
         <li><strong>Corpo da Requisição Exemplo:</strong>
             <pre><code>{
-"threadId": "thread_wudttBmK8bXWy5tNzP4cNIFh",
-"message": "user story - Eu como administrador, eu quero incluir novas mensagens de boas-vindas..."
+    "threadId": "thread_c6ed09O5VfaG1MpQ7nY6FGX9",
+    "message": "As a booking manager, I want to make a reservation for a customer in a specific period of time so that I do not run the risk of running out of rooms or the desired reservation period",
+    "featureDependsBackend": false,
+    "projectName": "PlazaHotel"
 }
 </code></pre>
 </li>
@@ -218,8 +307,8 @@
         <li><strong>Descrição:</strong> Gera e adiciona código ao projeto com base nas mensagens da thread.</li>
         <li><strong>Corpo da Requisição Exemplo:</strong>
             <pre><code>{
-"threadId": "thread_wudttBmK8bXWy5tNzP4cNIFh",
-"projectName": "Hostel"
+    "threadId":"thread_s6H8sr4bkz1QTffb0vmS2Yxr",
+    "projectName":"PlazaHotel"
 }
 </code></pre>
 </li>

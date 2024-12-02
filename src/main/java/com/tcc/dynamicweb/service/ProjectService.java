@@ -46,12 +46,6 @@ public class ProjectService {
     private static final Logger logger = LoggerFactory.getLogger(CodeService.class);
     private final ConcurrentHashMap<String, String> projectPaths = new ConcurrentHashMap<>();
 
-    private Map<String, String> threadProjectMap = new HashMap<>();
-
-    private Map<String, String> assistantMap = new HashMap<>();
-
-    private Map<String, String> threadIdMap = new HashMap<>();
-
     @Autowired
     private AssistantRepository assistantRepository;
 
@@ -102,13 +96,13 @@ public class ProjectService {
                                 project.setProgrammingLanguague(programmingLanguage);
                                 Optional<Assistant> optionalAssistant = assistantRepository.findAssistantByThreadId(threadId);
 
-                                Assistant assistant = optionalAssistant.orElseGet(() -> new Assistant());
-                                assistant.setThreadId(threadId);
-                                if(!optionalAssistant.isPresent()) {
-                                    assistant.setType(CODE_GENERATOR);
+                                if (optionalAssistant.isEmpty()){
+                                    optionalAssistant.get().setType(CODE_GENERATOR);
                                 }
-                                assistant.setProject(project);
-                                project.getAssistants().add(assistant);
+                                optionalAssistant.get().setThreadId(threadId);
+
+                                optionalAssistant.get().setProject(project);
+                                project.getAssistants().add(optionalAssistant.get());
                                 project.setPathToProject("C:\\Projects\\" + projectName);
 
                                 projectRepository.save(project);

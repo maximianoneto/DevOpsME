@@ -2,7 +2,10 @@ package com.tcc.dynamicweb.model;
 
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Data;
+
+import java.util.Objects;
 
 @Data
 @Entity
@@ -28,17 +31,19 @@ public class Assistant {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id")
     private Project project;
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Assistant)) return false;
-        Assistant assistant = (Assistant) o;
-        return assistantId != null && assistantId.equals(project.getProjectId());
-    }
 
     @Override
     public int hashCode() {
-        return getClass().hashCode();
+        return Objects.hash(id);
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Assistant assistant = (Assistant) obj;
+        return Objects.equals(id, assistant.id);
+    }
+
 }
 
