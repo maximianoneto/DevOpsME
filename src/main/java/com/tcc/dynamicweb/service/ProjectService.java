@@ -19,8 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -121,38 +123,70 @@ public class ProjectService {
     //String currentDirectory = "/projects"; Prod
     static String currentDirectory = "C:\\Projects"; // Local
 
-    public String getProjectPath(String projectName) {
+    public Path getProjectPath(String projectName) {
+        String osName = System.getProperty("os.name").toLowerCase();
+        Path baseProjectPath;
 
-        return currentDirectory + File.separator + projectName;
+        if (osName.contains("win")) {
+            baseProjectPath = Paths.get("C:\\Projects");
+        } else {
+            baseProjectPath = Paths.get("/projects");
+        }
+
+        return baseProjectPath.resolve(projectName);
     }
 
 
-    void addDependencyToProject(String dependency, String projectName) throws IOException {
-        Path projectFilePath = Paths.get(getProjectPath(projectName), "build.gradle");
-        List<String> lines = Files.readAllLines(projectFilePath);
-        AtomicBoolean insideDependenciesBlock = new AtomicBoolean(false);
-        String newLine = "    " + dependency;
+    public void addDependencyToProject(String projectName, String dependency) throws IOException {
+        Path projectPath = getProjectPath(projectName);
+        Path buildFilePath = projectPath.resolve("build.gradle");
 
-        List<String> updatedLines = lines.stream().map(line -> {
-            if (line.trim().equals("dependencies {")) {
-                insideDependenciesBlock.set(true);
-            } else if (line.trim().equals("}") && insideDependenciesBlock.get()) {
-                insideDependenciesBlock.set(false);
-                return newLine + "\n" + line;
-            }
-            return line;
-        }).collect(Collectors.toList());
-
-        // Em caso de arquivos sem um bloco dependencies existente, adiciona ao final.
-        if (insideDependenciesBlock.get()) {
-            updatedLines.add(newLine);
+        if (!Files.exists(buildFilePath)) {
+            throw new FileNotFoundException("build.gradle file not found at: " + buildFilePath.toString());
         }
 
-        Files.write(projectFilePath, updatedLines, StandardOpenOption.TRUNCATE_EXISTING);
+        // Ler o conteúdo existente
+        List<String> lines = Files.readAllLines(buildFilePath, StandardCharsets.UTF_8);
+
+        // Encontrar o bloco 'dependencies {'
+        int dependenciesStartIndex = -1;
+        int dependenciesEndIndex = -1;
+        int braceCount = 0;
+        boolean inDependenciesBlock = false;
+
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i).trim();
+            if (line.equals("dependencies {")) {
+                dependenciesStartIndex = i;
+                inDependenciesBlock = true;
+                braceCount++;
+            } else if (line.contains("{")) {
+                braceCount++;
+            } else if (line.contains("}")) {
+                braceCount--;
+                if (inDependenciesBlock && braceCount == 0) {
+                    dependenciesEndIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (dependenciesStartIndex != -1 && dependenciesEndIndex != -1) {
+            // Inserir a nova dependência antes da chave de fechamento
+            lines.add(dependenciesEndIndex, "    " + dependency);
+        } else {
+            // Se o bloco de dependências não for encontrado, adicioná-lo ao final
+            lines.add("\ndependencies {");
+            lines.add("    " + dependency);
+            lines.add("}");
+        }
+
+        // Gravar o conteúdo modificado de volta no arquivo
+        Files.write(buildFilePath, lines, StandardCharsets.UTF_8);
     }
 
     void addApplicationPropertiesToProject(String applicationBlock, String projectName) throws IOException {
-        Path projectFilePath = Paths.get(getProjectPath(projectName), "src", "main", "resources", "application.properties");
+        Path projectFilePath = Paths.get(String.valueOf(getProjectPath(projectName)), "src", "main", "resources", "application.properties");
 
         String fileContent = new String(Files.readAllBytes(projectFilePath));
 
@@ -219,7 +253,7 @@ public class ProjectService {
     }
 
     void createNodeFilesInProject(String path, String content, String projectName) throws IOException {
-        Path pathToFile = Paths.get(getProjectPath(projectName), path); // Cria o Path para o arquivo
+        Path pathToFile = Paths.get(String.valueOf(getProjectPath(projectName)), path); // Cria o Path para o arquivo
         if (Files.notExists(pathToFile.getParent())) {
             Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
         }
@@ -229,7 +263,7 @@ public class ProjectService {
     }
 
     void createPythonFilesInProject(String content, String project) throws IOException {
-        Path pathToFile = Paths.get(getProjectPath(project)); // Cria o Path para o arquivo
+        Path pathToFile = Paths.get(String.valueOf(getProjectPath(project))); // Cria o Path para o arquivo
         if (Files.notExists(pathToFile.getParent())) {
             Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
         }
@@ -238,7 +272,7 @@ public class ProjectService {
     }
 
     void createNextFilesInProject(String path, String content, String project) throws IOException {
-        Path pathToFile = Paths.get(getProjectPath(project), path); // Cria o Path para o arquivo
+        Path pathToFile = Paths.get(String.valueOf(getProjectPath(project)), path); // Cria o Path para o arquivo
         if (Files.notExists(pathToFile.getParent())) {
             Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
         }
@@ -247,7 +281,7 @@ public class ProjectService {
     }
 
     void createReactFilesInProject(String path, String content, String projectName) throws IOException {
-        Path pathToFile = Paths.get(getProjectPath(projectName), path); // Cria o Path para o arquivo
+        Path pathToFile = Paths.get(String.valueOf(getProjectPath(projectName)), path); // Cria o Path para o arquivo
         if (Files.notExists(pathToFile.getParent())) {
             Files.createDirectories(pathToFile.getParent()); // Cria os diretórios pais se não existirem
         }
@@ -258,19 +292,35 @@ public class ProjectService {
     public void zipFolder(Path sourceFolderPath, Path zipPath) throws IOException {
         logger.info("Iniciando zipping do diretório: {}", sourceFolderPath);
 
+        if (!Files.exists(sourceFolderPath)) {
+            logger.error("Source directory does not exist: {}", sourceFolderPath);
+            throw new FileNotFoundException("Source directory does not exist: " + sourceFolderPath);
+        }
+
+        // Ensure the parent directories for the ZIP file exist
+        Path zipParentDir = zipPath.getParent();
+        if (zipParentDir != null && !Files.exists(zipParentDir)) {
+            Files.createDirectories(zipParentDir);
+            logger.info("Criado diretório pai para o ZIP: {}", zipParentDir);
+        }
+
         Path nodeModulesPath = sourceFolderPath.resolve("node_modules");
         if (Files.exists(nodeModulesPath)) {
             logger.info("Deletando node_modules em: {}", nodeModulesPath);
             deleteFolder(nodeModulesPath);
         }
 
-        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipPath.toFile()))) {
+        try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(zipPath))) {
             Files.walkFileTree(sourceFolderPath, new SimpleFileVisitor<Path>() {
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.equals(zipPath)) {
+                        return FileVisitResult.CONTINUE; // Skip the ZIP file if it's inside the source directory
+                    }
                     logger.info("Adicionando arquivo ao ZIP: {}", file);
-                    zos.putNextEntry(new ZipEntry(sourceFolderPath.relativize(file).toString()));
+                    ZipEntry zipEntry = new ZipEntry(sourceFolderPath.relativize(file).toString().replace("\\", "/"));
+                    zos.putNextEntry(zipEntry);
                     Files.copy(file, zos);
                     zos.closeEntry();
                     return FileVisitResult.CONTINUE;
@@ -278,9 +328,13 @@ public class ProjectService {
 
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    if (!dir.equals(nodeModulesPath)) {
+                    if (dir.equals(nodeModulesPath)) {
+                        return FileVisitResult.SKIP_SUBTREE; // Skip node_modules directory
+                    }
+                    if (!dir.equals(sourceFolderPath)) {
                         logger.info("Adicionando diretório ao ZIP (excluindo node_modules): {}", dir);
-                        zos.putNextEntry(new ZipEntry(sourceFolderPath.relativize(dir).toString() + "/"));
+                        ZipEntry zipEntry = new ZipEntry(sourceFolderPath.relativize(dir).toString().replace("\\", "/") + "/");
+                        zos.putNextEntry(zipEntry);
                         zos.closeEntry();
                     }
                     return FileVisitResult.CONTINUE;
@@ -293,6 +347,7 @@ public class ProjectService {
 
         logger.info("Zipping concluído com sucesso para: {}", zipPath);
     }
+
 
     private void deleteFolder(Path folderPath) throws IOException {
         logger.info("Iniciando deleção do diretório: {}", folderPath);

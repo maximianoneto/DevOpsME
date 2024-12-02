@@ -1,29 +1,38 @@
 # Use a imagem base do Java 17
-FROM openjdk:17-jdk-slim as build
+FROM openjdk:17-jdk-slim
 
-RUN mkdir projects
-
-# Define o diretório de trabalho
-WORKDIR /app
-
-# Instala Node.js, npm e outras dependências necessárias
+# Instala dependências necessárias
 RUN apt-get update && \
     apt-get install -y curl gnupg unzip zip git && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     npm install -g vercel && \
-    npm install --global yarn
+    npm install --global yarn && \
+    apt-get install -y mariadb-server && \
+    rm -rf /var/lib/apt/lists/*
 
-# Instalar o Spring Boot CLI
-RUN curl -s "https://get.sdkman.io" | bash && \
-    bash -c "source $HOME/.sdkman/bin/sdkman-init.sh && sdk install springboot" && \
-    ln -s "$HOME/.sdkman/candidates/springboot/current/bin/spring" /usr/local/bin/spring
+# Instala o Spring Boot CLI
+RUN curl -s https://get.sdkman.io | bash && \
+    bash -c "source /root/.sdkman/bin/sdkman-init.sh && sdk install springboot"
 
-# Copia o resto do seu projeto
-COPY . .
+# Adiciona o Spring Boot CLI ao PATH
+ENV PATH="/root/.sdkman/candidates/springboot/current/bin:${PATH}"
 
-# Define o ponto de entrada da aplicação
-ENTRYPOINT ["java", "-jar", "build/libs/DynamicWeb-0.0.1.jar"]
+# Cria o diretório /Projects
+RUN mkdir /Projects
 
-# Expor a porta em que sua aplicação Spring Boot irá rodar
-EXPOSE 8080
+# Define o diretório de trabalho
+WORKDIR /app
+
+# Copia o código da sua aplicação
+COPY . /app
+
+# Expor as portas
+EXPOSE 8081 3306
+
+# Copia o script de entrada
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Define o ponto de entrada
+ENTRYPOINT ["/entrypoint.sh"]

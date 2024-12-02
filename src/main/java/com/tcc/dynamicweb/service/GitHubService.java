@@ -9,7 +9,7 @@ import java.io.IOException;
 @Service
 public class GitHubService {
 
-    private final String githubToken = "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";
+    private final String githubToken = "";
     private final String currentDirectory = "C:\\Projects"; // Local
 
     public String getProjectPath(String projectName) {
