@@ -14,6 +14,36 @@
 
 # Configuração do Projeto DynamicWeb
 
+## Configurando o Assistant pela GUI da OPENAI
+1. Entre no site da OpenAI https://platform.openai.com/playground/
+2. Va na aba lateral em Assistants
+3. Clique em Create New Assistant
+4. Defina o nome do assistant, em baixo do nome contera o ID do assistant que referenciaremos no arquivo .env (Exemplo: asst_HJrsyC7ZLKCJuwT15ygF8JAb)
+5. Em System Instructions coloque como seu assistant ira atuar.
+6. Exemplo para um assistant de Java:
+7. Role: Você vai atuar como um especialista em criação de projetos Java 17 ou Java 21 com os seguintas tecnologias abaixo e você prioritamente não devolverá texto explicando o procedimento mas atuando conforme as etapas abaixo:
+   Na sua primeira iteração você devolverá comando para criação de projeto no terminal,  a arvore de diretórios de acordo com sua iteração inicial e após isso você atuará recebendo história de usuário e critério de aceitação para produzir o código com base na história de usuário e o critério de aceitação.
+   Quando produzir código se atentar ao package da classe para ser igual ao package do projeto gerado, verificar arvores de diretórios.
+   Se você utilizar de alguma dependência que não está inclusa no projeto base para produzir código, você deve informar a utilização da dependencia como sua versão e devolver todo o código referente ao build.gradle ou maven. Quando for build.gradle utilizar do pattern de regex: ```gradle ou ```maven.
+   Para cada comando que será necessário rodar no terminal, você deve utilizar o pattern a seguir para que pegue somente um comando por vez. Pattern de regex para identificação do comando como exemplo: ```cmd\n(.+?)\n```
+   Quanto voce for rodar um comando para criação de projeto java, você utilizará o Spring CLI usando o exemplo como base:
+   Exemplo: spring init --dependencies=web,lombok --build=gradle --java-version=17 --boot-version=3.2.0 --type=gradle-project --name=centralparkhotel centralparkhotel
+
+8. O exemplo acima contem Instruçoes Comportamentais de como assistant deve atuar.
+9. Sugestao: Utilize o exemplo acima a fim de testar o funcionamento da Aplicacao.
+10. Ainda na interface de assistant da OpenAI, selecione o Model que ira atuar como assistant. 
+11. Exemplo: gpt-4-turbo
+12. Salve o assistant e copie o ID do assistant que fica abaixo do seu nome.
+13. Crie um arquivo .env na raiz do projeto contendo:
+14. OPENAI_API_KEY=chave-da-open-ai
+15. TEST_REACT_ID=asst_g9KCev8WzHY1zJT9cXR2IS0i
+16. TEST_NODE_ID=asst_0hvUbB6SiNxBQBZEzWSAWJHb
+17. PYTHON_ID=asst_ffpgT4f0i3K7Wt35SqOp6uww
+18. REACT_ID=asst_OxHBt8GMEc3x4N8QPqi0wrma
+19. JAVA_ID=asst_P1Mlu6C8nZBevGH0yvX5aK35 // Cole o ID do assistant respectivo a sua linguagem de atuaçao
+20. NEXT_ID=asst_WQoe8Myj09wtB3vYWig0FXJb // Caso nao use outro assistant apenas preencha com String vazia
+21. NODE_ID=asst_8VMJsRU9b57pgrTVxGMkYb5r
+
 ## Rodando a aplicação utilizando docker
 1. Crie um arquivo `.env` na raiz do projeto com a seguinte variável de ambiente:
  ```bash 
@@ -61,10 +91,15 @@ A aplicação expõe as seguintes rotas através do `ThreadController`:
 ### 1. Criar Thread
 - **Endpoint**: `POST localhost:8080/api/createThread`
 - **Descrição**: Cria uma nova thread com uma mensagem inicial.
-- **Payload**: `{"initialMessage": "<mensagem_inicial>"}`
-- **Exemplo**: `{
-  "initialMessage": "nome:Padaria, Linguagem de Programação: Java 17, Framework: Spring Boot, Dependency Manager: gradle, Adicional Dependencies: mockito"
-  }`
+- **Payload**: `{
+  "projectName": "Padaria",
+  "programmingLanguage": "Java",
+  "versionOfProgrammingLanguage": "17",
+  "framework": "Spring Boot 3.3.0",
+  "dependencyManager": "Gradle",
+  "additionalDependencies": "Mockito"
+  }
+`
 
 ### 2. Retorna uma lista de Mensagens de uma ThreadId
 - **Endpoint**: `GET localhost:8080/api/getThreadMessages?threadId=threadId`
@@ -73,12 +108,15 @@ A aplicação expõe as seguintes rotas através do `ThreadController`:
 
 ### 3. Adiciona uma Mensagem a uma ThreadId
 - **Endpoint**: `POST localhost:8080/api/addMessageToThread`
-- **Curl**: `curl --location 'localhost:8080/api/addMessageToThread' \
-  --header 'Content-Type: application/json' \
-  --data '{
-  "threadId": "threadId",
-  "message": "User Story 1: Employee Authentication As a hostel employee,I want to securely log in to the hostel management system,So that I can access the customer information and perform my duties.Acceptance Criteria:The login screen must have input fields for the username and password.After entering credentials, an employee should be able to log in by clicking the '\''Sign in'\'' button.The system should handle authentication and display an error message if the login fails."
-  }'`
+- **Curl**: `curl --location 'localhost:8080/thread/addMessage' \
+--header 'Content-Type: application/json' \
+--data '{
+  "threadId": "thread123",
+  "message": "User Story 1: Employee Authentication As a hostel employee, I want to securely log in to the hostel management system, So that I can access the customer information and perform my duties. Acceptance Criteria: The login screen must have input fields for the username and password. After entering credentials, an employee should be able to log in by clicking the '\''Sign in'\'' button. The system should handle authentication and display an error message if the login fails.",
+  "featureDependsBackend": true,
+  "projectName": "HostelManagementSystem"
+}'
+`
 
 Rotas referente ao `ProjectController`:
 

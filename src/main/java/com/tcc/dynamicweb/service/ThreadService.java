@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.*;
 import com.tcc.dynamicweb.model.Assistant;
+import com.tcc.dynamicweb.model.Project;
+import com.tcc.dynamicweb.model.dto.CreateThreadDTO;
 import com.tcc.dynamicweb.repository.AssistantRepository;
 import com.tcc.dynamicweb.repository.ProjectRepository;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -16,23 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-
-import static com.tcc.dynamicweb.model.Assistant.AssistantType.CODE_GENERATOR;
-import static com.tcc.dynamicweb.model.Assistant.AssistantType.TEST_GENERATOR;
 
 @Service
 public class ThreadService {
@@ -56,11 +44,11 @@ public class ThreadService {
     @Autowired
     private ProjectRepository projectRepository;
 
-    public String createThread(String initialMessageContent) {
+    public String createThread(CreateThreadDTO createThreadDTO) {
         HttpHeaders headers = createHeaders();
         JsonObject messageObj = new JsonObject();
         messageObj.addProperty("role", "user");
-        messageObj.addProperty("content", initialMessageContent);
+        messageObj.addProperty("content", String.valueOf(createThreadDTO));
 
         JsonArray messages = new JsonArray();
         messages.add(messageObj);
@@ -71,101 +59,78 @@ public class ThreadService {
         HttpEntity<String> entity = new HttpEntity<>(threadBody.toString(), headers);
         ResponseEntity<String> response = restTemplate.postForEntity(openAiBaseUrl + "/threads", entity, String.class);
 
-        if (response.getStatusCode().is2xxSuccessful()) {
-            JsonObject responseBody = JsonParser.parseString(Objects.requireNonNull(response.getBody())).getAsJsonObject();
-            String threadId = responseBody.get("id").getAsString();
-
-            String projectName = extractProjectName(initialMessageContent);
-            // Armazenamento do threadId e projectName no HashMap
-            threadProjectMap.put(threadId, projectName);
-
-            if (initialMessageContent.contains("testReact") || initialMessageContent.contains("TestReact")) {
-                assistantMap.put(threadId, "asst_g9KCev8WzHY1zJT9cXR2IS0i");
-                sendRun(threadId, "asst_g9KCev8WzHY1zJT9cXR2IS0i");
-                Assistant assistant = new Assistant();
-                assistant.setAssistantId("asst_g9KCev8WzHY1zJT9cXR2IS0i");
-                assistant.setThreadId(threadId);
-                assistant.setType(TEST_GENERATOR);
-                assistantRepository.save(assistant);
-                threadIdMap.put(projectName, threadId);
-                return threadId;
-            } else if (initialMessageContent.contains("testNode") || initialMessageContent.contains("TestNode")) {
-                assistantMap.put(threadId, "asst_0hvUbB6SiNxBQBZEzWSAWJHb");
-                sendRun(threadId, "asst_0hvUbB6SiNxBQBZEzWSAWJHb");
-                Assistant assistant = new Assistant();
-                assistant.setAssistantId("asst_0hvUbB6SiNxBQBZEzWSAWJHb");
-                assistant.setThreadId(threadId);
-                assistant.setType(TEST_GENERATOR);
-                assistantRepository.save(assistant);
-                threadIdMap.put(projectName, threadId);
-                return threadId;
-            } else if (initialMessageContent.contains("python") || initialMessageContent.contains("Python")) {
-                assistantMap.put(threadId, "asst_ffpgT4f0i3K7Wt35SqOp6uww");
-                sendRun(threadId, "asst_ffpgT4f0i3K7Wt35SqOp6uww");
-                Assistant assistant = new Assistant();
-                assistant.setAssistantId("asst_ffpgT4f0i3K7Wt35SqOp6uww");
-                assistant.setThreadId(threadId);
-                assistant.setType(CODE_GENERATOR);
-                assistantRepository.save(assistant);
-                threadIdMap.put(projectName, threadId);
-                return threadId;
-            }else if (initialMessageContent.contains("react") || initialMessageContent.contains("React")) {
-                assistantMap.put(threadId, "asst_OxHBt8GMEc3x4N8QPqi0wrma");
-                sendRun(threadId, "asst_OxHBt8GMEc3x4N8QPqi0wrma");
-                Assistant assistant = new Assistant();
-                assistant.setAssistantId("asst_OxHBt8GMEc3x4N8QPqi0wrma");
-                assistant.setThreadId(threadId);
-                assistant.setType(CODE_GENERATOR);
-                assistantRepository.save(assistant);
-                return threadId;
-            } else if (initialMessageContent.contains("java") || initialMessageContent.contains("Java")) {
-                assistantMap.put(threadId, "asst_P1Mlu6C8nZBevGH0yvX5aK35");
-                sendRun(threadId, "asst_P1Mlu6C8nZBevGH0yvX5aK35");
-                Assistant assistant = new Assistant();
-                assistant.setAssistantId("asst_P1Mlu6C8nZBevGH0yvX5aK35");
-                assistant.setThreadId(threadId);
-                assistant.setType(CODE_GENERATOR);
-                assistantRepository.save(assistant);
-                return threadId;
-            } else if (initialMessageContent.contains("next") || initialMessageContent.contains("Next")) {
-                assistantMap.put(threadId, "asst_WQoe8Myj09wtB3vYWig0FXJb");
-                sendRun(threadId, "asst_WQoe8Myj09wtB3vYWig0FXJb");
-                Assistant assistant = new Assistant();
-                assistant.setAssistantId("asst_WQoe8Myj09wtB3vYWig0FXJb");
-                assistant.setThreadId(threadId);
-                assistant.setType(CODE_GENERATOR);
-                assistantRepository.save(assistant);
-                return threadId;
-            } else if (initialMessageContent.contains("node") || initialMessageContent.contains("Node") || initialMessageContent.contains("Node.js") || initialMessageContent.contains("node.js")) {
-                assistantMap.put(threadId, "asst_8VMJsRU9b57pgrTVxGMkYb5r");
-                sendRun(threadId, "asst_8VMJsRU9b57pgrTVxGMkYb5r");
-                Assistant assistant = new Assistant();
-                assistant.setAssistantId("asst_8VMJsRU9b57pgrTVxGMkYb5r");
-                assistant.setThreadId(threadId);
-                assistant.setType(CODE_GENERATOR);
-                assistantRepository.save(assistant);
-                return threadId;
-            }
-        } else {
+        if (!response.getStatusCode().is2xxSuccessful()) {
             return "Erro ao criar thread: " + response.getStatusCode();
+        }
+
+        JsonObject responseBody = JsonParser.parseString(Objects.requireNonNull(response.getBody())).getAsJsonObject();
+        String threadId = responseBody.get("id").getAsString();
+
+        Map<String, String> assistantConfig = getAssistantConfig(createThreadDTO.getProgrammingLanguage());
+        if (assistantConfig != null) {
+            String assistantType = assistantConfig.keySet().iterator().next();
+            String assistantId = assistantConfig.get(assistantType);
+            createAndSaveAssistant(threadId, assistantId, assistantType, createThreadDTO.getProjectName());
+            sendRun(threadId, assistantId);
+            return threadId;
         }
 
         return response.getBody();
     }
 
-    // Método auxiliar para extrair o nome do projeto do initialMessageContent
-    private String extractProjectName(String initialMessageContent) {
-        // Divide a string pelo padrão ", " para lidar com múltiplos elementos
-        String[] parts = initialMessageContent.split(",");
-        for (String part : parts) {
-            if (part.trim().toLowerCase().matches("^nome:.*")) {
-                String[] nameSplit = part.split(":", 2); // Divide apenas no primeiro ":", resultando em 2 partes
-                if (nameSplit.length > 1) { // Verifica se existe algo após "nome:"
-                    return nameSplit[1].trim(); // Retorna o nome do projeto, que é a parte após "nome:"
-                }
-            }
+    private Map<String, String> getAssistantConfig(String programmingLanguage) {
+        String codeGenerator = "CODE_GENERATOR";
+        String testGenerator = "TEST_GENERATOR";
+        Dotenv dotenv = Dotenv.load();
+        Map<String, String> assistantIdAndType = new HashMap<>(Map.of());
+
+        // Garantir que a comparação ignore maiúsculas e minúsculas
+        String lowerCaseMessage = programmingLanguage.toLowerCase();
+
+        // Verificar se a mensagem contém as palavras-chave relevantes
+        if (lowerCaseMessage.contains("testreact")) {
+            String assistant = dotenv.get("TEST_REACT_ID");
+            assistantIdAndType.put(testGenerator, assistant);
+            return assistantIdAndType;
+        } else if (lowerCaseMessage.contains("testnode")) {
+            String assistant = dotenv.get("TEST_NODE_ID");
+            assistantIdAndType.put(testGenerator, assistant);
+            return assistantIdAndType;
+        } else if (lowerCaseMessage.contains("python")) {
+            String assistant = dotenv.get("PYTHON_ID");
+            assistantIdAndType.put(codeGenerator, assistant);
+            return assistantIdAndType;
+        } else if (lowerCaseMessage.contains("react")) {
+            String assistant = dotenv.get("REACT_ID");
+            assistantIdAndType.put(codeGenerator, assistant);
+            return assistantIdAndType;
+        } else if (lowerCaseMessage.contains("java")) {
+            String assistant = dotenv.get("JAVA_ID");
+            assistantIdAndType.put(codeGenerator, assistant);
+            return assistantIdAndType;
+        } else if (lowerCaseMessage.contains("next")) {
+            String assistant = dotenv.get("NEXT_ID");
+            assistantIdAndType.put(codeGenerator, assistant);
+            return assistantIdAndType;
+        } else if (lowerCaseMessage.contains("node")) {
+            String assistant = dotenv.get("NODE_ID");
+            assistantIdAndType.put(codeGenerator, assistant);
+            return assistantIdAndType;
+        } else {
+            // Log caso nenhuma palavra-chave seja encontrada
+            System.out.println("No match found for keywords.");
         }
-        return "Nome do Projeto Desconhecido";
+
+        return assistantIdAndType;
+    }
+
+
+    private void createAndSaveAssistant(String threadId, String assistantId, String type, String projectName) {
+        Assistant assistant = new Assistant();
+        assistant.setThreadId(threadId);
+        assistant.setAssistantId(assistantId);
+        assistant.setType(Assistant.AssistantType.valueOf(type));
+        assistantRepository.save(assistant);
     }
 
     public String sendRun(String threadId, String assistantId) {
@@ -289,9 +254,11 @@ public class ThreadService {
                 ResponseEntity<String> response1 = restTemplate.postForEntity(url, request, String.class);
 
                 if (response1.getStatusCode().is2xxSuccessful()) {
-                    String assistantId = assistantMap.get(threadId);
-                    sendRun(threadId, assistantId);
-                    return threadId;
+                    Optional<Assistant> assistant = assistantRepository.findAssistantByThreadId(threadId);
+                    if (assistant.isPresent()){
+                        sendRun(threadId, assistant.get().getAssistantId());
+                        return threadId;
+                    }
                 } else {
                     return "Erro ao adicionar mensagem ao Thread: " + response1.getStatusCode();
                 }

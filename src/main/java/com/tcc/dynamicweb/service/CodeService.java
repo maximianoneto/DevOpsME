@@ -274,31 +274,31 @@ public class CodeService {
 
                         regexTestNode(threadService.getThreadMessages(threadId), projectName);
                     }else {
-                        String threadId = threadService.createThread("nome:" + projectName + "," + "\n" + "testNode" + value);
+                      //  String threadId = threadService.createThread("nome:" + projectName + "," + "\n" + "testNode" + value);
 
-                        regexTestNode(threadService.getThreadMessages(threadId), projectName);
+                     //   regexTestNode(threadService.getThreadMessages(threadId), projectName);
 
                         // Supondo que seu projectRepository tenha um método chamado findByName que retorna um Optional<Project>
-                        Optional<Project> existingProject = projectRepository.findByName(projectName);
-
-                        Project project = existingProject.orElseGet(() -> {
-                            Project newProject = new Project();
-                            newProject.setName(projectName);
-                            newProject.setPathToProject("C:\\Projects\\" + projectName);
-                            return newProject;
-                        });
+//                        Optional<Project> existingProject = projectRepository.findByName(projectName);
+//
+//                        Project project = existingProject.orElseGet(() -> {
+//                            Project newProject = new Project();
+//                            newProject.setName(projectName);
+//                            newProject.setPathToProject("C:\\Projects\\" + projectName);
+//                            return newProject;
+//                        });
 
                         // Supondo que o assistantRepository tenha um método findAssistantByThreadId que retorne Optional<Assistant>
-                        Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
+                   //     Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
 
-                        Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
-                        assistant.setThreadId(threadId);
-                        assistant.setProject(project);
+                  //      Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
+                  //      assistant.setThreadId(threadId);
+                //        assistant.setProject(project);
                         // Ajuste o tipo conforme sua implementação
-                        assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
-                        project.getAssistants().add(assistant);
+                   //     assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
+                  //     project.getAssistants().add(assistant);
 
-                        projectRepository.save(project);
+                     //   projectRepository.save(project);
                     }
                 }
             }
@@ -446,7 +446,7 @@ public class CodeService {
                                     executeCommand(command);
                                 }
                             }
-                            Optional<Project> project = projectRepository.findByName(projectName);
+                            Optional<Project> project = projectRepository.findByNameAndThreadId(projectName, threadId);
                             String language = project.get().getProgrammingLanguague();
                             switch (language) {
                                 case "java":
@@ -623,29 +623,29 @@ public class CodeService {
                         regexTestNode(threadService.getThreadMessages(threadId), projectName);
                     }else {
 
-                        String threadId = threadService.createThread("nome:" + projectName + "," + "testReact" + "\n" + value);
+                    //    String threadId = threadService.createThread("nome:" + projectName + "," + "testReact" + "\n" + value);
 
-                        regexTestNode(threadService.getThreadMessages(threadId), projectName);
+                   //     regexTestNode(threadService.getThreadMessages(threadId), projectName);
 
-                        Optional<Project> existingProject = projectRepository.findByName(projectName);
+                   //     Optional<Project> existingProject = projectRepository.findByName(projectName);
 
-                        Project project = existingProject.orElseGet(() -> {
-                            Project newProject = new Project();
-                            newProject.setName(projectName);
-                            newProject.setPathToProject("C:\\Projects\\" + projectName);
-                            return newProject;
-                        });
+//                        Project project = existingProject.orElseGet(() -> {
+//                            Project newProject = new Project();
+//                            newProject.setName(projectName);
+//                            newProject.setPathToProject("C:\\Projects\\" + projectName);
+//                            return newProject;
+//                        });
 
-                        Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
+                    //   Optional<Assistant> existingAssistant = assistantRepository.findAssistantByThreadId(threadId);
 
-                        Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
-                        assistant.setThreadId(threadId);
-                        assistant.setProject(project);
+                    //    Assistant assistant = existingAssistant.orElseGet(() -> new Assistant());
+                    //    assistant.setThreadId(threadId);
+                    //    assistant.setProject(project);
 
-                        assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
-                        project.getAssistants().add(assistant);
+                    //    assistant.setType(Assistant.AssistantType.TEST_GENERATOR);
+                   //     project.getAssistants().add(assistant);
 
-                        projectRepository.save(project);
+                 //       projectRepository.save(project);
                     }
                 }
             }
