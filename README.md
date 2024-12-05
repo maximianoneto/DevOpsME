@@ -392,7 +392,6 @@ message: "Gere o código em html, css, javascript"
         <li><strong>Conector MySQL</strong></li>
         <li><strong>Docker</strong></li>
     </ul>
-    <p><strong>Exemplo do <code>build.gradle</code>:</strong></p>
     <p><a href="#tabela-de-conteúdos">⬆️ Voltar ao Topo</a></p>
     <h2 id="informações-de-contato">Informações de Contato</h2>
     <p>Para quaisquer dúvidas ou suporte, por favor, entre em contato:</p>
