@@ -95,14 +95,18 @@ public class ProjectService {
                                 project.setAdditionalInformation(additionalInformation);
                                 project.setProgrammingLanguague(programmingLanguage);
                                 Optional<Assistant> optionalAssistant = assistantRepository.findAssistantByThreadId(threadId);
+                                Assistant assistant;
 
-                                if (optionalAssistant.isEmpty()){
-                                    optionalAssistant.get().setType(CODE_GENERATOR);
+                                if (optionalAssistant.isPresent()) {
+                                    assistant = optionalAssistant.get();
+                                } else {
+                                    assistant = new Assistant();
+                                    assistant.setType(CODE_GENERATOR);
                                 }
-                                optionalAssistant.get().setThreadId(threadId);
 
-                                optionalAssistant.get().setProject(project);
-                                project.getAssistants().add(optionalAssistant.get());
+                                assistant.setThreadId(threadId);
+                                assistant.setProject(project);
+                                project.getAssistants().add(assistant);
                                 project.setPathToProject("C:\\Projects\\" + projectName);
 
                                 projectRepository.save(project);
