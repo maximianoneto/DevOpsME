@@ -14,6 +14,7 @@
                 <li><a href="#pré-requisitos">Pré-Requisitos</a></li>
                 <li><a href="#executando-a-aplicação-usando-docker">Executando a Aplicação Usando Docker</a></li>
                 <li><a href="#executando-a-aplicação-localmente">Executando a Aplicação Localmente</a></li>
+                <li><a href="#interface-desktop">Interface Desktop (Opcional)</a></li>
             </ul>
         </li>
         <li><a href="#fluxo-de-uso-da-api">Fluxo de Uso da API</a>
@@ -168,6 +169,8 @@ NODE_ID=asst_8VMJsRU9b57pgrTVxGMkYb5r
     <p>Inicie a aplicação:</p>
     <pre><code>./gradlew bootRun
     </code></pre>
+    <h3 id="interface-desktop">Interface Desktop (Opcional)</h3>
+    <p>Após a compilação, você pode executar a classe <code>com.tcc.dynamicweb.ui.DesktopApp</code> para utilizar uma interface Swing que facilita o consumo dos endpoints.</p>
     <p><a href="#tabela-de-conteúdos">⬆️ Voltar ao Topo</a></p>
     <h2 id="fluxo-de-uso-da-api">Fluxo de Uso da API</h2>
     <p>Para gerar um projeto e adicionar código dinamicamente, siga a sequência de chamadas de API abaixo. Você pode usar as requisições padrão da documentação Swagger como exemplos.</p>
